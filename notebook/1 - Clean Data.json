@@ -18,7 +18,7 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "21a5cb9b-cf79-4edb-8386-23bd694a5d4f"
+				"spark.autotune.trackingId": "bc3f17bb-3a3e-4ef0-84c7-05c464ee392b"
 			}
 		},
 		"metadata": {
@@ -73,13 +73,9 @@
 				"cell_type": "code",
 				"source": [
 					"# python libary imports\n",
-					"import pyspark\n",
-					"from pyspark.sql import functions as F\n",
-					"from pyspark.sql.functions import *\n",
-					"from pyspark.sql import *\n",
-					"from pyspark.sql.types import *\n",
-					"import pandas as pd\n",
-					"import numpy as np"
+					"\n",
+					"\n",
+					"#this now has my bugfix! yay"
 				],
 				"execution_count": 30
 			},
