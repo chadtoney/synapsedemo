@@ -1,0 +1,2095 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "chadtoneysynapseworkspace"
+		},
+		"chadtoneysynapseworkspace-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'chadtoneysynapseworkspace-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:chadtoneysynapseworkspace.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"chadtoneysynapseworkspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://chadtoneyadlsgen2.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/chadtoneysynapseworkspace-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('chadtoneysynapseworkspace-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/chadtoneysynapseworkspace-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('chadtoneysynapseworkspace-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/1 - Clean Data')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "chadtsparkpool",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "56g",
+					"driverCores": 8,
+					"executorMemory": "56g",
+					"executorCores": 8,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "2210be6e-84db-4765-93ad-801627fa3a73"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"enableDebugMode": false,
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/a43580c5-f11d-4ef0-b78f-96a3ac268198/resourceGroups/synapsedemoforStateDept/providers/Microsoft.Synapse/workspaces/chadtoneysynapseworkspace/bigDataPools/chadtsparkpool",
+						"name": "chadtsparkpool",
+						"type": "Spark",
+						"endpoint": "https://chadtoneysynapseworkspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/chadtsparkpool",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net"
+						},
+						"sparkVersion": "3.4",
+						"nodeCount": 10,
+						"cores": 8,
+						"memory": 56,
+						"automaticScaleJobs": false
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"metadata": {},
+						"source": [
+							"Copyright (c) Microsoft Corporation. \n",
+							"Licensed under the MIT license. \n",
+							"# Clean Data\n",
+							"\n",
+							"We are using an open source eCommerce store dataset from Kaggle: [eCommerce behavior data from multi category store](https://www.kaggle.com/mkechinov/ecommerce-behavior-data-from-multi-category-store). The first step is to clean the source dataset into a version we can work with:\n",
+							"\n",
+							"1. Remove data missing that is missing brand and category values\n",
+							"2. Filter to only keep brands and categories that are accurately mapped\n",
+							"3. Write the results to the data lake"
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {},
+						"source": [
+							"## Library Imports"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"# python libary imports\n",
+							"\n",
+							"\n",
+							"#this now has my bugfix! yay"
+						],
+						"outputs": [],
+						"execution_count": 30
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {},
+						"source": [
+							"## Read in Data from Azure Data Lake\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"data_lake_account_name = 'chadtoneyadlsgen2'\n",
+							"file_system_name = 'demofilesystem'"
+						],
+						"outputs": [],
+						"execution_count": 22
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"paths = [f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/raw_data/*\"]\n",
+							"df = spark.read.csv(*paths, header='true')"
+						],
+						"outputs": [],
+						"execution_count": 24
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"event_time"
+									],
+									"values": [
+										"event_time"
+									],
+									"yLabel": "event_time",
+									"xLabel": "event_time",
+									"aggregation": "COUNT",
+									"aggByBackend": false
+								},
+								"aggData": "{\"event_time\":{\"2019-12-01 00:00:00 UTC\":2,\"2019-12-01 00:00:01 UTC\":1,\"2019-12-01 00:00:02 UTC\":2}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# show retail dataframe\n",
+							"display(df.take(5))"
+						],
+						"outputs": [],
+						"execution_count": 25
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand"
+									],
+									"values": [
+										"category_code"
+									],
+									"yLabel": "category_code",
+									"xLabel": "brand",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"category_code\":{\"55670767\":65171763}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# show missing values\n",
+							"#display(df.select([count(when(df[c].isNull(), c)).alias(c) for c in df.columns]))"
+						],
+						"outputs": [],
+						"execution_count": 26
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"# drop rows that have no category, brand, or user session\n",
+							"df = df.filter((df.category_code != 'null') & (df.brand != 'null') & (df.brand != 'user_session'))"
+						],
+						"outputs": [],
+						"execution_count": 27
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"event_time"
+									],
+									"values": [
+										"event_time"
+									],
+									"yLabel": "event_time",
+									"xLabel": "event_time",
+									"aggregation": "COUNT",
+									"aggByBackend": false
+								},
+								"aggData": "{\"event_time\":{\"2019-12-01 00:00:00 UTC\":1,\"2019-12-01 00:00:01 UTC\":1,\"2019-12-01 00:00:02 UTC\":2,\"2019-12-01 00:00:03 UTC\":1,\"2019-12-01 00:00:04 UTC\":3,\"2019-12-01 00:00:06 UTC\":2,\"2019-12-01 00:00:07 UTC\":6,\"2019-12-01 00:00:08 UTC\":3,\"2019-12-01 00:00:09 UTC\":1,\"2019-12-01 00:00:10 UTC\":2,\"2019-12-01 00:00:11 UTC\":2,\"2019-12-01 00:00:12 UTC\":4,\"2019-12-01 00:00:14 UTC\":5,\"2019-12-01 00:00:15 UTC\":1,\"2019-12-01 00:00:16 UTC\":3,\"2019-12-01 00:00:17 UTC\":3,\"2019-12-01 00:00:18 UTC\":1,\"2019-12-01 00:00:19 UTC\":3,\"2019-12-01 00:00:20 UTC\":2,\"2019-12-01 00:00:22 UTC\":3,\"2019-12-01 00:00:23 UTC\":4,\"2019-12-01 00:00:25 UTC\":2,\"2019-12-01 00:00:26 UTC\":1,\"2019-12-01 00:00:27 UTC\":5,\"2019-12-01 00:00:28 UTC\":3,\"2019-12-01 00:00:29 UTC\":1,\"2019-12-01 00:00:30 UTC\":5,\"2019-12-01 00:00:31 UTC\":2,\"2019-12-01 00:00:32 UTC\":1,\"2019-12-01 00:00:33 UTC\":4,\"2019-12-01 00:00:34 UTC\":2,\"2019-12-01 00:00:35 UTC\":2,\"2019-12-01 00:00:36 UTC\":2,\"2019-12-01 00:00:38 UTC\":4,\"2019-12-01 00:00:39 UTC\":4,\"2019-12-01 00:00:40 UTC\":4,\"2019-12-01 00:00:41 UTC\":3,\"2019-12-01 00:00:42 UTC\":1,\"2019-12-01 00:00:43 UTC\":3,\"2019-12-01 00:00:44 UTC\":2,\"2019-12-01 00:00:46 UTC\":6,\"2019-12-01 00:00:47 UTC\":2,\"2019-12-01 00:00:48 UTC\":2,\"2019-12-01 00:00:49 UTC\":4,\"2019-12-01 00:00:50 UTC\":4,\"2019-12-01 00:00:51 UTC\":1,\"2019-12-01 00:00:52 UTC\":5,\"2019-12-01 00:00:53 UTC\":2,\"2019-12-01 00:00:54 UTC\":2,\"2019-12-01 00:00:56 UTC\":3,\"2019-12-01 00:00:57 UTC\":1,\"2019-12-01 00:00:58 UTC\":3,\"2019-12-01 00:00:59 UTC\":2,\"2019-12-01 00:01:00 UTC\":2,\"2019-12-01 00:01:02 UTC\":3,\"2019-12-01 00:01:03 UTC\":2,\"2019-12-01 00:01:04 UTC\":1,\"2019-12-01 00:01:05 UTC\":2,\"2019-12-01 00:01:06 UTC\":3,\"2019-12-01 00:01:07 UTC\":3,\"2019-12-01 00:01:08 UTC\":1,\"2019-12-01 00:01:09 UTC\":1,\"2019-12-01 00:01:10 UTC\":2,\"2019-12-01 00:01:11 UTC\":1,\"2019-12-01 00:01:12 UTC\":5,\"2019-12-01 00:01:13 UTC\":2,\"2019-12-01 00:01:14 UTC\":4,\"2019-12-01 00:01:15 UTC\":2,\"2019-12-01 00:01:16 UTC\":4,\"2019-12-01 00:01:17 UTC\":2,\"2019-12-01 00:01:18 UTC\":1,\"2019-12-01 00:01:19 UTC\":2,\"2019-12-01 00:01:20 UTC\":2,\"2019-12-01 00:01:21 UTC\":3,\"2019-12-01 00:01:22 UTC\":3,\"2019-12-01 00:01:23 UTC\":2,\"2019-12-01 00:01:24 UTC\":2,\"2019-12-01 00:01:25 UTC\":1,\"2019-12-01 00:01:26 UTC\":1,\"2019-12-01 00:01:27 UTC\":3,\"2019-12-01 00:01:28 UTC\":2,\"2019-12-01 00:01:29 UTC\":3,\"2019-12-01 00:01:30 UTC\":3,\"2019-12-01 00:01:31 UTC\":1,\"2019-12-01 00:01:32 UTC\":4,\"2019-12-01 00:01:33 UTC\":2,\"2019-12-01 00:01:34 UTC\":1,\"2019-12-01 00:01:35 UTC\":5,\"2019-12-01 00:01:36 UTC\":1,\"2019-12-01 00:01:38 UTC\":4,\"2019-12-01 00:01:39 UTC\":4,\"2019-12-01 00:01:40 UTC\":3,\"2019-12-01 00:01:42 UTC\":2,\"2019-12-01 00:01:44 UTC\":1,\"2019-12-01 00:01:45 UTC\":4,\"2019-12-01 00:01:46 UTC\":1,\"2019-12-01 00:01:47 UTC\":3,\"2019-12-01 00:01:48 UTC\":4,\"2019-12-01 00:01:49 UTC\":2,\"2019-12-01 00:01:50 UTC\":1,\"2019-12-01 00:01:51 UTC\":1,\"2019-12-01 00:01:52 UTC\":2,\"2019-12-01 00:01:53 UTC\":2,\"2019-12-01 00:01:54 UTC\":5,\"2019-12-01 00:01:56 UTC\":2,\"2019-12-01 00:01:58 UTC\":4,\"2019-12-01 00:01:59 UTC\":4,\"2019-12-01 00:02:01 UTC\":2,\"2019-12-01 00:02:03 UTC\":3,\"2019-12-01 00:02:04 UTC\":2,\"2019-12-01 00:02:05 UTC\":3,\"2019-12-01 00:02:06 UTC\":1,\"2019-12-01 00:02:07 UTC\":2,\"2019-12-01 00:02:08 UTC\":1,\"2019-12-01 00:02:09 UTC\":1,\"2019-12-01 00:02:10 UTC\":4,\"2019-12-01 00:02:11 UTC\":1,\"2019-12-01 00:02:12 UTC\":1,\"2019-12-01 00:02:13 UTC\":3,\"2019-12-01 00:02:14 UTC\":3,\"2019-12-01 00:02:16 UTC\":1,\"2019-12-01 00:02:17 UTC\":1,\"2019-12-01 00:02:18 UTC\":1,\"2019-12-01 00:02:19 UTC\":4,\"2019-12-01 00:02:20 UTC\":2,\"2019-12-01 00:02:22 UTC\":2,\"2019-12-01 00:02:23 UTC\":3,\"2019-12-01 00:02:24 UTC\":1,\"2019-12-01 00:02:26 UTC\":1,\"2019-12-01 00:02:27 UTC\":1,\"2019-12-01 00:02:28 UTC\":1,\"2019-12-01 00:02:29 UTC\":1,\"2019-12-01 00:02:30 UTC\":2,\"2019-12-01 00:02:31 UTC\":2,\"2019-12-01 00:02:32 UTC\":2,\"2019-12-01 00:02:33 UTC\":2,\"2019-12-01 00:02:34 UTC\":1,\"2019-12-01 00:02:35 UTC\":4,\"2019-12-01 00:02:36 UTC\":2,\"2019-12-01 00:02:37 UTC\":3,\"2019-12-01 00:02:38 UTC\":2,\"2019-12-01 00:02:39 UTC\":2,\"2019-12-01 00:02:40 UTC\":3,\"2019-12-01 00:02:41 UTC\":3,\"2019-12-01 00:02:42 UTC\":4,\"2019-12-01 00:02:43 UTC\":4,\"2019-12-01 00:02:44 UTC\":3,\"2019-12-01 00:02:45 UTC\":2,\"2019-12-01 00:02:46 UTC\":3,\"2019-12-01 00:02:47 UTC\":3,\"2019-12-01 00:02:48 UTC\":1,\"2019-12-01 00:02:49 UTC\":2,\"2019-12-01 00:02:50 UTC\":4,\"2019-12-01 00:02:51 UTC\":2,\"2019-12-01 00:02:52 UTC\":2,\"2019-12-01 00:02:54 UTC\":3,\"2019-12-01 00:02:55 UTC\":3,\"2019-12-01 00:02:57 UTC\":2,\"2019-12-01 00:02:58 UTC\":3,\"2019-12-01 00:02:59 UTC\":1,\"2019-12-01 00:03:01 UTC\":7,\"2019-12-01 00:03:02 UTC\":1,\"2019-12-01 00:03:03 UTC\":1,\"2019-12-01 00:03:04 UTC\":1,\"2019-12-01 00:03:05 UTC\":4,\"2019-12-01 00:03:06 UTC\":2,\"2019-12-01 00:03:07 UTC\":2,\"2019-12-01 00:03:08 UTC\":1,\"2019-12-01 00:03:09 UTC\":1,\"2019-12-01 00:03:10 UTC\":1,\"2019-12-01 00:03:11 UTC\":1,\"2019-12-01 00:03:12 UTC\":4,\"2019-12-01 00:03:13 UTC\":2,\"2019-12-01 00:03:15 UTC\":1,\"2019-12-01 00:03:16 UTC\":1,\"2019-12-01 00:03:18 UTC\":3,\"2019-12-01 00:03:19 UTC\":4,\"2019-12-01 00:03:20 UTC\":3,\"2019-12-01 00:03:21 UTC\":1,\"2019-12-01 00:03:22 UTC\":4,\"2019-12-01 00:03:24 UTC\":3,\"2019-12-01 00:03:25 UTC\":3,\"2019-12-01 00:03:27 UTC\":1,\"2019-12-01 00:03:28 UTC\":3,\"2019-12-01 00:03:30 UTC\":2,\"2019-12-01 00:03:31 UTC\":2,\"2019-12-01 00:03:32 UTC\":3,\"2019-12-01 00:03:33 UTC\":2,\"2019-12-01 00:03:34 UTC\":1,\"2019-12-01 00:03:35 UTC\":1,\"2019-12-01 00:03:37 UTC\":2,\"2019-12-01 00:03:38 UTC\":3,\"2019-12-01 00:03:39 UTC\":1,\"2019-12-01 00:03:40 UTC\":2,\"2019-12-01 00:03:41 UTC\":2,\"2019-12-01 00:03:42 UTC\":4,\"2019-12-01 00:03:43 UTC\":2,\"2019-12-01 00:03:44 UTC\":1,\"2019-12-01 00:03:45 UTC\":1,\"2019-12-01 00:03:46 UTC\":1,\"2019-12-01 00:03:47 UTC\":2,\"2019-12-01 00:03:48 UTC\":1,\"2019-12-01 00:03:50 UTC\":4,\"2019-12-01 00:03:51 UTC\":3,\"2019-12-01 00:03:52 UTC\":3,\"2019-12-01 00:03:53 UTC\":1,\"2019-12-01 00:03:55 UTC\":2,\"2019-12-01 00:03:56 UTC\":3,\"2019-12-01 00:03:57 UTC\":2,\"2019-12-01 00:03:58 UTC\":2,\"2019-12-01 00:03:59 UTC\":1,\"2019-12-01 00:04:00 UTC\":2,\"2019-12-01 00:04:01 UTC\":4,\"2019-12-01 00:04:02 UTC\":3,\"2019-12-01 00:04:03 UTC\":2,\"2019-12-01 00:04:04 UTC\":2,\"2019-12-01 00:04:05 UTC\":4,\"2019-12-01 00:04:06 UTC\":1,\"2019-12-01 00:04:07 UTC\":2,\"2019-12-01 00:04:08 UTC\":1,\"2019-12-01 00:04:09 UTC\":3,\"2019-12-01 00:04:10 UTC\":3,\"2019-12-01 00:04:11 UTC\":2,\"2019-12-01 00:04:13 UTC\":1,\"2019-12-01 00:04:14 UTC\":3,\"2019-12-01 00:04:15 UTC\":3,\"2019-12-01 00:04:16 UTC\":2,\"2019-12-01 00:04:17 UTC\":1,\"2019-12-01 00:04:18 UTC\":2,\"2019-12-01 00:04:19 UTC\":3,\"2019-12-01 00:04:20 UTC\":4,\"2019-12-01 00:04:21 UTC\":1,\"2019-12-01 00:04:22 UTC\":3,\"2019-12-01 00:04:23 UTC\":2,\"2019-12-01 00:04:24 UTC\":1,\"2019-12-01 00:04:25 UTC\":4,\"2019-12-01 00:04:26 UTC\":3,\"2019-12-01 00:04:27 UTC\":4,\"2019-12-01 00:04:28 UTC\":2,\"2019-12-01 00:04:29 UTC\":1,\"2019-12-01 00:04:30 UTC\":2,\"2019-12-01 00:04:31 UTC\":1,\"2019-12-01 00:04:33 UTC\":4,\"2019-12-01 00:04:34 UTC\":3,\"2019-12-01 00:04:35 UTC\":2,\"2019-12-01 00:04:36 UTC\":3,\"2019-12-01 00:04:37 UTC\":1,\"2019-12-01 00:04:38 UTC\":2,\"2019-12-01 00:04:39 UTC\":4,\"2019-12-01 00:04:40 UTC\":6,\"2019-12-01 00:04:41 UTC\":3,\"2019-12-01 00:04:42 UTC\":2,\"2019-12-01 00:04:43 UTC\":4,\"2019-12-01 00:04:44 UTC\":4,\"2019-12-01 00:04:45 UTC\":2,\"2019-12-01 00:04:46 UTC\":1,\"2019-12-01 00:04:47 UTC\":1,\"2019-12-01 00:04:48 UTC\":4,\"2019-12-01 00:04:49 UTC\":5,\"2019-12-01 00:04:50 UTC\":2,\"2019-12-01 00:04:52 UTC\":1,\"2019-12-01 00:04:53 UTC\":3,\"2019-12-01 00:04:54 UTC\":4,\"2019-12-01 00:04:55 UTC\":3,\"2019-12-01 00:04:56 UTC\":5,\"2019-12-01 00:04:57 UTC\":4,\"2019-12-01 00:04:58 UTC\":2,\"2019-12-01 00:04:59 UTC\":2,\"2019-12-01 00:05:00 UTC\":3,\"2019-12-01 00:05:01 UTC\":2,\"2019-12-01 00:05:03 UTC\":1,\"2019-12-01 00:05:04 UTC\":2,\"2019-12-01 00:05:05 UTC\":3,\"2019-12-01 00:05:06 UTC\":2,\"2019-12-01 00:05:07 UTC\":2,\"2019-12-01 00:05:10 UTC\":1,\"2019-12-01 00:05:11 UTC\":3,\"2019-12-01 00:05:12 UTC\":2,\"2019-12-01 00:05:13 UTC\":1,\"2019-12-01 00:05:14 UTC\":2,\"2019-12-01 00:05:15 UTC\":2,\"2019-12-01 00:05:17 UTC\":1,\"2019-12-01 00:05:18 UTC\":6,\"2019-12-01 00:05:19 UTC\":2,\"2019-12-01 00:05:20 UTC\":1,\"2019-12-01 00:05:21 UTC\":1,\"2019-12-01 00:05:22 UTC\":2,\"2019-12-01 00:05:23 UTC\":1,\"2019-12-01 00:05:24 UTC\":2,\"2019-12-01 00:05:25 UTC\":3,\"2019-12-01 00:05:26 UTC\":2,\"2019-12-01 00:05:27 UTC\":1,\"2019-12-01 00:05:28 UTC\":3,\"2019-12-01 00:05:29 UTC\":3,\"2019-12-01 00:05:30 UTC\":4,\"2019-12-01 00:05:31 UTC\":3,\"2019-12-01 00:05:32 UTC\":2,\"2019-12-01 00:05:33 UTC\":2,\"2019-12-01 00:05:34 UTC\":1,\"2019-12-01 00:05:35 UTC\":4,\"2019-12-01 00:05:36 UTC\":1,\"2019-12-01 00:05:37 UTC\":2,\"2019-12-01 00:05:38 UTC\":4,\"2019-12-01 00:05:39 UTC\":2,\"2019-12-01 00:05:40 UTC\":1,\"2019-12-01 00:05:41 UTC\":2,\"2019-12-01 00:05:42 UTC\":4,\"2019-12-01 00:05:43 UTC\":2,\"2019-12-01 00:05:44 UTC\":2,\"2019-12-01 00:05:45 UTC\":3,\"2019-12-01 00:05:46 UTC\":5,\"2019-12-01 00:05:47 UTC\":4,\"2019-12-01 00:05:48 UTC\":1,\"2019-12-01 00:05:49 UTC\":2,\"2019-12-01 00:05:50 UTC\":3,\"2019-12-01 00:05:51 UTC\":2,\"2019-12-01 00:05:52 UTC\":3,\"2019-12-01 00:05:53 UTC\":3,\"2019-12-01 00:05:54 UTC\":3,\"2019-12-01 00:05:55 UTC\":1,\"2019-12-01 00:05:56 UTC\":2,\"2019-12-01 00:05:57 UTC\":2,\"2019-12-01 00:05:58 UTC\":3,\"2019-12-01 00:05:59 UTC\":1,\"2019-12-01 00:06:00 UTC\":3,\"2019-12-01 00:06:01 UTC\":2,\"2019-12-01 00:06:02 UTC\":3,\"2019-12-01 00:06:03 UTC\":2,\"2019-12-01 00:06:04 UTC\":2,\"2019-12-01 00:06:06 UTC\":2,\"2019-12-01 00:06:07 UTC\":2,\"2019-12-01 00:06:08 UTC\":2,\"2019-12-01 00:06:09 UTC\":4,\"2019-12-01 00:06:10 UTC\":1,\"2019-12-01 00:06:11 UTC\":3,\"2019-12-01 00:06:12 UTC\":3,\"2019-12-01 00:06:13 UTC\":6,\"2019-12-01 00:06:14 UTC\":5,\"2019-12-01 00:06:15 UTC\":2,\"2019-12-01 00:06:16 UTC\":3,\"2019-12-01 00:06:19 UTC\":6,\"2019-12-01 00:06:21 UTC\":2,\"2019-12-01 00:06:22 UTC\":3,\"2019-12-01 00:06:23 UTC\":1,\"2019-12-01 00:06:24 UTC\":6,\"2019-12-01 00:06:25 UTC\":4,\"2019-12-01 00:06:26 UTC\":4,\"2019-12-01 00:06:27 UTC\":2,\"2019-12-01 00:06:29 UTC\":2,\"2019-12-01 00:06:30 UTC\":2,\"2019-12-01 00:06:32 UTC\":2,\"2019-12-01 00:06:33 UTC\":4,\"2019-12-01 00:06:34 UTC\":1,\"2019-12-01 00:06:35 UTC\":1,\"2019-12-01 00:06:36 UTC\":1,\"2019-12-01 00:06:37 UTC\":2,\"2019-12-01 00:06:39 UTC\":5,\"2019-12-01 00:06:40 UTC\":2,\"2019-12-01 00:06:41 UTC\":3,\"2019-12-01 00:06:42 UTC\":1,\"2019-12-01 00:06:44 UTC\":2,\"2019-12-01 00:06:45 UTC\":5,\"2019-12-01 00:06:46 UTC\":3,\"2019-12-01 00:06:47 UTC\":1,\"2019-12-01 00:06:48 UTC\":3,\"2019-12-01 00:06:49 UTC\":2,\"2019-12-01 00:06:50 UTC\":2,\"2019-12-01 00:06:51 UTC\":1,\"2019-12-01 00:06:52 UTC\":2,\"2019-12-01 00:06:53 UTC\":2,\"2019-12-01 00:06:54 UTC\":3,\"2019-12-01 00:06:55 UTC\":2,\"2019-12-01 00:06:56 UTC\":1,\"2019-12-01 00:06:57 UTC\":3,\"2019-12-01 00:06:59 UTC\":1,\"2019-12-01 00:07:00 UTC\":1,\"2019-12-01 00:07:01 UTC\":1,\"2019-12-01 00:07:02 UTC\":4,\"2019-12-01 00:07:04 UTC\":5,\"2019-12-01 00:07:06 UTC\":3,\"2019-12-01 00:07:07 UTC\":3,\"2019-12-01 00:07:08 UTC\":4,\"2019-12-01 00:07:10 UTC\":2,\"2019-12-01 00:07:12 UTC\":2,\"2019-12-01 00:07:13 UTC\":4,\"2019-12-01 00:07:15 UTC\":2,\"2019-12-01 00:07:16 UTC\":1,\"2019-12-01 00:07:17 UTC\":4,\"2019-12-01 00:07:18 UTC\":3,\"2019-12-01 00:07:19 UTC\":3,\"2019-12-01 00:07:20 UTC\":3,\"2019-12-01 00:07:21 UTC\":1,\"2019-12-01 00:07:23 UTC\":2,\"2019-12-01 00:07:24 UTC\":1,\"2019-12-01 00:07:25 UTC\":5,\"2019-12-01 00:07:26 UTC\":1,\"2019-12-01 00:07:27 UTC\":4,\"2019-12-01 00:07:28 UTC\":4,\"2019-12-01 00:07:29 UTC\":3,\"2019-12-01 00:07:30 UTC\":1,\"2019-12-01 00:07:31 UTC\":1,\"2019-12-01 00:07:32 UTC\":3,\"2019-12-01 00:07:33 UTC\":1,\"2019-12-01 00:07:34 UTC\":1,\"2019-12-01 00:07:35 UTC\":3,\"2019-12-01 00:07:36 UTC\":1,\"2019-12-01 00:07:37 UTC\":3,\"2019-12-01 00:07:38 UTC\":1,\"2019-12-01 00:07:39 UTC\":3,\"2019-12-01 00:07:40 UTC\":6,\"2019-12-01 00:07:41 UTC\":2,\"2019-12-01 00:07:42 UTC\":1,\"2019-12-01 00:07:43 UTC\":2}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# split category code into category and subcategory\n",
+							"df = df.withColumn('category', split(col('category_code'), '\\.').getItem(0))\\\n",
+							"       .withColumn('subcategory', split(col('category_code'), '\\.').getItem(1))"
+						],
+						"outputs": [],
+						"execution_count": 28
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"# write df table to an intermediate spark table\n",
+							"df.write.format(\"delta\").mode(\"overwrite\").option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/filtered_df\")\n",
+							"\n",
+							"# read filtered_df table intermediate spark table\n",
+							"df = spark.read.format(\"delta\").load(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/filtered_df\")"
+						],
+						"outputs": [],
+						"execution_count": 29
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {},
+						"source": [
+							"## Data Cleaning\n",
+							"The retail dataset has some messy data where the brands don't align with the categories. Below is code to analyze the dataset to filter it down to the categories, subcategories, and brands that look the best."
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {},
+						"source": [
+							"# top categories - construction, electronics, appliances, apparel, computers, sport, furniture, kids\n",
+							"# display(filtered_df.groupBy('category').count().orderBy(desc('count')))\n",
+							"\n",
+							"# construction and furniture don't look right\n",
+							"\n",
+							"#display(filtered_df.filter((filtered_df.category_code.contains('construction'))).groupBy('brand').count().orderBy(desc('count')))\n",
+							"#display(filtered_df.filter((filtered_df.category_code.contains('furniture'))).groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# electronics looks much better\n",
+							"# display(filtered_df.filter((filtered_df.category_code.contains('electronics'))).groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top electronics subcategories\n",
+							"# display(filtered_df.filter(filtered_df['category'] == 'electronics').groupBy('sub_category_1').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top smartphone brands\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'smartphone').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top audio brands\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'audio').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top clock brands\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'clocks').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top video brands - there are none\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'videos').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top camera brands - a lot do not make sense\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'camera').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top tablet brands\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'tablet').groupBy('brand').count().orderBy(desc('count')))\n",
+							"\n",
+							"# top telephone brands\n",
+							"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'telephone').groupBy('brand').count().orderBy(desc('count')))"
+						],
+						"outputs": [],
+						"execution_count": null
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"event_time"
+									],
+									"values": [
+										"event_time"
+									],
+									"yLabel": "event_time",
+									"xLabel": "event_time",
+									"aggregation": "COUNT",
+									"aggByBackend": false
+								},
+								"aggData": "{\"event_time\":{\"2019-12-26 06:53:42 UTC\":2,\"2019-12-26 06:53:43 UTC\":6,\"2019-12-26 06:53:44 UTC\":3,\"2019-12-26 06:53:45 UTC\":2,\"2019-12-26 06:53:47 UTC\":5,\"2019-12-26 06:53:48 UTC\":4,\"2019-12-26 06:53:49 UTC\":1,\"2019-12-26 06:53:50 UTC\":1,\"2019-12-26 06:53:51 UTC\":1,\"2019-12-26 06:53:53 UTC\":3,\"2019-12-26 06:53:54 UTC\":4,\"2019-12-26 06:53:55 UTC\":3,\"2019-12-26 06:53:56 UTC\":2,\"2019-12-26 06:53:57 UTC\":2,\"2019-12-26 06:53:58 UTC\":3,\"2019-12-26 06:53:59 UTC\":6,\"2019-12-26 06:54:00 UTC\":1,\"2019-12-26 06:54:01 UTC\":3,\"2019-12-26 06:54:02 UTC\":4,\"2019-12-26 06:54:04 UTC\":4,\"2019-12-26 06:54:05 UTC\":2,\"2019-12-26 06:54:06 UTC\":2,\"2019-12-26 06:54:07 UTC\":1,\"2019-12-26 06:54:08 UTC\":4,\"2019-12-26 06:54:09 UTC\":4,\"2019-12-26 06:54:10 UTC\":4,\"2019-12-26 06:54:12 UTC\":3,\"2019-12-26 06:54:14 UTC\":2,\"2019-12-26 06:54:15 UTC\":3,\"2019-12-26 06:54:16 UTC\":4,\"2019-12-26 06:54:17 UTC\":3,\"2019-12-26 06:54:18 UTC\":1,\"2019-12-26 06:54:19 UTC\":2,\"2019-12-26 06:54:20 UTC\":2,\"2019-12-26 06:54:21 UTC\":3,\"2019-12-26 06:54:22 UTC\":4,\"2019-12-26 06:54:23 UTC\":6,\"2019-12-26 06:54:24 UTC\":1,\"2019-12-26 06:54:25 UTC\":2,\"2019-12-26 06:54:26 UTC\":3,\"2019-12-26 06:54:27 UTC\":2,\"2019-12-26 06:54:28 UTC\":4,\"2019-12-26 06:54:29 UTC\":4,\"2019-12-26 06:54:30 UTC\":1,\"2019-12-26 06:54:31 UTC\":2,\"2019-12-26 06:54:32 UTC\":4,\"2019-12-26 06:54:33 UTC\":1,\"2019-12-26 06:54:34 UTC\":2,\"2019-12-26 06:54:35 UTC\":1,\"2019-12-26 06:54:37 UTC\":3,\"2019-12-26 06:54:38 UTC\":1,\"2019-12-26 06:54:39 UTC\":3,\"2019-12-26 06:54:40 UTC\":2,\"2019-12-26 06:54:41 UTC\":1,\"2019-12-26 06:54:42 UTC\":2,\"2019-12-26 06:54:43 UTC\":2,\"2019-12-26 06:54:44 UTC\":2,\"2019-12-26 06:54:45 UTC\":4,\"2019-12-26 06:54:46 UTC\":3,\"2019-12-26 06:54:47 UTC\":1,\"2019-12-26 06:54:48 UTC\":4,\"2019-12-26 06:54:49 UTC\":1,\"2019-12-26 06:54:50 UTC\":2,\"2019-12-26 06:54:51 UTC\":4,\"2019-12-26 06:54:52 UTC\":2,\"2019-12-26 06:54:53 UTC\":2,\"2019-12-26 06:54:54 UTC\":6,\"2019-12-26 06:54:55 UTC\":2,\"2019-12-26 06:54:56 UTC\":1,\"2019-12-26 06:54:57 UTC\":1,\"2019-12-26 06:54:58 UTC\":1,\"2019-12-26 06:54:59 UTC\":4,\"2019-12-26 06:55:00 UTC\":3,\"2019-12-26 06:55:01 UTC\":3,\"2019-12-26 06:55:03 UTC\":3,\"2019-12-26 06:55:04 UTC\":5,\"2019-12-26 06:55:05 UTC\":3,\"2019-12-26 06:55:06 UTC\":2,\"2019-12-26 06:55:07 UTC\":3,\"2019-12-26 06:55:08 UTC\":1,\"2019-12-26 06:55:09 UTC\":4,\"2019-12-26 06:55:10 UTC\":1,\"2019-12-26 06:55:11 UTC\":1,\"2019-12-26 06:55:13 UTC\":1,\"2019-12-26 06:55:14 UTC\":4,\"2019-12-26 06:55:15 UTC\":4,\"2019-12-26 06:55:16 UTC\":2,\"2019-12-26 06:55:19 UTC\":1,\"2019-12-26 06:55:21 UTC\":2,\"2019-12-26 06:55:22 UTC\":2,\"2019-12-26 06:55:23 UTC\":1,\"2019-12-26 06:55:24 UTC\":2,\"2019-12-26 06:55:25 UTC\":3,\"2019-12-26 06:55:26 UTC\":2,\"2019-12-26 06:55:27 UTC\":5,\"2019-12-26 06:55:28 UTC\":3,\"2019-12-26 06:55:29 UTC\":3,\"2019-12-26 06:55:30 UTC\":1,\"2019-12-26 06:55:31 UTC\":4,\"2019-12-26 06:55:32 UTC\":2,\"2019-12-26 06:55:33 UTC\":1,\"2019-12-26 06:55:34 UTC\":3,\"2019-12-26 06:55:35 UTC\":3,\"2019-12-26 06:55:36 UTC\":3,\"2019-12-26 06:55:37 UTC\":2,\"2019-12-26 06:55:38 UTC\":3,\"2019-12-26 06:55:40 UTC\":6,\"2019-12-26 06:55:41 UTC\":4,\"2019-12-26 06:55:42 UTC\":4,\"2019-12-26 06:55:43 UTC\":1,\"2019-12-26 06:55:44 UTC\":2,\"2019-12-26 06:55:45 UTC\":5,\"2019-12-26 06:55:46 UTC\":1,\"2019-12-26 06:55:47 UTC\":2,\"2019-12-26 06:55:48 UTC\":1,\"2019-12-26 06:55:49 UTC\":1,\"2019-12-26 06:55:50 UTC\":2,\"2019-12-26 06:55:52 UTC\":3,\"2019-12-26 06:55:53 UTC\":3,\"2019-12-26 06:55:54 UTC\":3,\"2019-12-26 06:55:55 UTC\":2,\"2019-12-26 06:55:56 UTC\":2,\"2019-12-26 06:55:58 UTC\":2,\"2019-12-26 06:55:59 UTC\":2,\"2019-12-26 06:56:00 UTC\":3,\"2019-12-26 06:56:01 UTC\":5,\"2019-12-26 06:56:02 UTC\":2,\"2019-12-26 06:56:04 UTC\":3,\"2019-12-26 06:56:05 UTC\":2,\"2019-12-26 06:56:07 UTC\":4,\"2019-12-26 06:56:08 UTC\":1,\"2019-12-26 06:56:09 UTC\":3,\"2019-12-26 06:56:10 UTC\":3,\"2019-12-26 06:56:11 UTC\":3,\"2019-12-26 06:56:13 UTC\":2,\"2019-12-26 06:56:14 UTC\":2,\"2019-12-26 06:56:15 UTC\":2,\"2019-12-26 06:56:17 UTC\":2,\"2019-12-26 06:56:18 UTC\":3,\"2019-12-26 06:56:19 UTC\":1,\"2019-12-26 06:56:20 UTC\":1,\"2019-12-26 06:56:21 UTC\":4,\"2019-12-26 06:56:23 UTC\":2,\"2019-12-26 06:56:24 UTC\":3,\"2019-12-26 06:56:25 UTC\":4,\"2019-12-26 06:56:26 UTC\":2,\"2019-12-26 06:56:27 UTC\":2,\"2019-12-26 06:56:28 UTC\":1,\"2019-12-26 06:56:29 UTC\":1,\"2019-12-26 06:56:30 UTC\":3,\"2019-12-26 06:56:31 UTC\":3,\"2019-12-26 06:56:32 UTC\":2,\"2019-12-26 06:56:33 UTC\":1,\"2019-12-26 06:56:34 UTC\":2,\"2019-12-26 06:56:35 UTC\":2,\"2019-12-26 06:56:37 UTC\":2,\"2019-12-26 06:56:38 UTC\":2,\"2019-12-26 06:56:40 UTC\":2,\"2019-12-26 06:56:41 UTC\":1,\"2019-12-26 06:56:42 UTC\":1,\"2019-12-26 06:56:43 UTC\":1,\"2019-12-26 06:56:44 UTC\":5,\"2019-12-26 06:56:45 UTC\":1,\"2019-12-26 06:56:46 UTC\":1,\"2019-12-26 06:56:47 UTC\":2,\"2019-12-26 06:56:49 UTC\":3,\"2019-12-26 06:56:50 UTC\":3,\"2019-12-26 06:56:51 UTC\":1,\"2019-12-26 06:56:52 UTC\":3,\"2019-12-26 06:56:53 UTC\":2,\"2019-12-26 06:56:54 UTC\":2,\"2019-12-26 06:56:55 UTC\":2,\"2019-12-26 06:56:56 UTC\":2,\"2019-12-26 06:57:00 UTC\":4,\"2019-12-26 06:57:01 UTC\":1,\"2019-12-26 06:57:04 UTC\":1,\"2019-12-26 06:57:05 UTC\":1,\"2019-12-26 06:57:06 UTC\":2,\"2019-12-26 06:57:07 UTC\":2,\"2019-12-26 06:57:08 UTC\":3,\"2019-12-26 06:57:10 UTC\":2,\"2019-12-26 06:57:11 UTC\":2,\"2019-12-26 06:57:12 UTC\":2,\"2019-12-26 06:57:14 UTC\":3,\"2019-12-26 06:57:15 UTC\":1,\"2019-12-26 06:57:17 UTC\":1,\"2019-12-26 06:57:18 UTC\":3,\"2019-12-26 06:57:19 UTC\":2,\"2019-12-26 06:57:20 UTC\":3,\"2019-12-26 06:57:22 UTC\":1,\"2019-12-26 06:57:23 UTC\":3,\"2019-12-26 06:57:24 UTC\":1,\"2019-12-26 06:57:25 UTC\":2,\"2019-12-26 06:57:26 UTC\":3,\"2019-12-26 06:57:28 UTC\":5,\"2019-12-26 06:57:29 UTC\":2,\"2019-12-26 06:57:30 UTC\":1,\"2019-12-26 06:57:31 UTC\":1,\"2019-12-26 06:57:32 UTC\":2,\"2019-12-26 06:57:33 UTC\":2,\"2019-12-26 06:57:35 UTC\":2,\"2019-12-26 06:57:36 UTC\":1,\"2019-12-26 06:57:37 UTC\":2,\"2019-12-26 06:57:38 UTC\":2,\"2019-12-26 06:57:39 UTC\":2,\"2019-12-26 06:57:40 UTC\":3,\"2019-12-26 06:57:41 UTC\":1,\"2019-12-26 06:57:42 UTC\":3,\"2019-12-26 06:57:43 UTC\":1,\"2019-12-26 06:57:45 UTC\":2,\"2019-12-26 06:57:46 UTC\":2,\"2019-12-26 06:57:47 UTC\":3,\"2019-12-26 06:57:48 UTC\":4,\"2019-12-26 06:57:49 UTC\":1,\"2019-12-26 06:57:51 UTC\":3,\"2019-12-26 06:57:52 UTC\":2,\"2019-12-26 06:57:53 UTC\":1,\"2019-12-26 06:57:54 UTC\":3,\"2019-12-26 06:57:55 UTC\":2,\"2019-12-26 06:57:56 UTC\":1,\"2019-12-26 06:57:57 UTC\":2,\"2019-12-26 06:57:58 UTC\":1,\"2019-12-26 06:57:59 UTC\":2,\"2019-12-26 06:58:00 UTC\":1,\"2019-12-26 06:58:01 UTC\":2,\"2019-12-26 06:58:02 UTC\":2,\"2019-12-26 06:58:03 UTC\":1,\"2019-12-26 06:58:04 UTC\":2,\"2019-12-26 06:58:06 UTC\":4,\"2019-12-26 06:58:07 UTC\":2,\"2019-12-26 06:58:08 UTC\":1,\"2019-12-26 06:58:10 UTC\":2,\"2019-12-26 06:58:11 UTC\":3,\"2019-12-26 06:58:12 UTC\":1,\"2019-12-26 06:58:13 UTC\":4,\"2019-12-26 06:58:14 UTC\":3,\"2019-12-26 06:58:15 UTC\":2,\"2019-12-26 06:58:16 UTC\":2,\"2019-12-26 06:58:17 UTC\":1,\"2019-12-26 06:58:19 UTC\":4,\"2019-12-26 06:58:20 UTC\":3,\"2019-12-26 06:58:22 UTC\":4,\"2019-12-26 06:58:23 UTC\":3,\"2019-12-26 06:58:24 UTC\":4,\"2019-12-26 06:58:25 UTC\":2,\"2019-12-26 06:58:26 UTC\":1,\"2019-12-26 06:58:28 UTC\":1,\"2019-12-26 06:58:29 UTC\":7,\"2019-12-26 06:58:30 UTC\":2,\"2019-12-26 06:58:31 UTC\":1,\"2019-12-26 06:58:32 UTC\":3,\"2019-12-26 06:58:33 UTC\":2,\"2019-12-26 06:58:34 UTC\":4,\"2019-12-26 06:58:36 UTC\":2,\"2019-12-26 06:58:37 UTC\":2,\"2019-12-26 06:58:38 UTC\":1,\"2019-12-26 06:58:39 UTC\":3,\"2019-12-26 06:58:40 UTC\":4,\"2019-12-26 06:58:41 UTC\":3,\"2019-12-26 06:58:42 UTC\":2,\"2019-12-26 06:58:43 UTC\":4,\"2019-12-26 06:58:44 UTC\":5,\"2019-12-26 06:58:45 UTC\":2,\"2019-12-26 06:58:46 UTC\":1,\"2019-12-26 06:58:47 UTC\":4,\"2019-12-26 06:58:48 UTC\":2,\"2019-12-26 06:58:49 UTC\":2,\"2019-12-26 06:58:50 UTC\":2,\"2019-12-26 06:58:51 UTC\":1,\"2019-12-26 06:58:52 UTC\":4,\"2019-12-26 06:58:53 UTC\":6,\"2019-12-26 06:58:54 UTC\":3,\"2019-12-26 06:58:55 UTC\":1,\"2019-12-26 06:58:56 UTC\":3,\"2019-12-26 06:58:57 UTC\":1,\"2019-12-26 06:58:58 UTC\":2,\"2019-12-26 06:59:00 UTC\":2,\"2019-12-26 06:59:02 UTC\":2,\"2019-12-26 06:59:03 UTC\":2,\"2019-12-26 06:59:04 UTC\":2,\"2019-12-26 06:59:05 UTC\":4,\"2019-12-26 06:59:06 UTC\":2,\"2019-12-26 06:59:08 UTC\":1,\"2019-12-26 06:59:09 UTC\":1,\"2019-12-26 06:59:10 UTC\":1,\"2019-12-26 06:59:11 UTC\":2,\"2019-12-26 06:59:12 UTC\":2,\"2019-12-26 06:59:13 UTC\":5,\"2019-12-26 06:59:14 UTC\":2,\"2019-12-26 06:59:15 UTC\":2,\"2019-12-26 06:59:16 UTC\":1,\"2019-12-26 06:59:17 UTC\":1,\"2019-12-26 06:59:18 UTC\":4,\"2019-12-26 06:59:19 UTC\":1,\"2019-12-26 06:59:20 UTC\":7,\"2019-12-26 06:59:21 UTC\":3,\"2019-12-26 06:59:22 UTC\":4,\"2019-12-26 06:59:23 UTC\":3,\"2019-12-26 06:59:24 UTC\":4,\"2019-12-26 06:59:25 UTC\":1,\"2019-12-26 06:59:26 UTC\":1,\"2019-12-26 06:59:27 UTC\":5,\"2019-12-26 06:59:28 UTC\":4,\"2019-12-26 06:59:30 UTC\":1,\"2019-12-26 06:59:32 UTC\":1,\"2019-12-26 06:59:33 UTC\":4,\"2019-12-26 06:59:34 UTC\":4,\"2019-12-26 06:59:35 UTC\":2,\"2019-12-26 06:59:36 UTC\":3,\"2019-12-26 06:59:37 UTC\":1,\"2019-12-26 06:59:38 UTC\":3,\"2019-12-26 06:59:39 UTC\":3,\"2019-12-26 06:59:40 UTC\":4,\"2019-12-26 06:59:41 UTC\":4,\"2019-12-26 06:59:42 UTC\":2,\"2019-12-26 06:59:43 UTC\":2,\"2019-12-26 06:59:44 UTC\":5,\"2019-12-26 06:59:45 UTC\":3,\"2019-12-26 06:59:46 UTC\":4,\"2019-12-26 06:59:47 UTC\":4,\"2019-12-26 06:59:48 UTC\":4,\"2019-12-26 06:59:50 UTC\":4,\"2019-12-26 06:59:51 UTC\":3,\"2019-12-26 06:59:52 UTC\":2,\"2019-12-26 06:59:53 UTC\":2,\"2019-12-26 06:59:54 UTC\":3,\"2019-12-26 06:59:55 UTC\":2,\"2019-12-26 06:59:56 UTC\":3,\"2019-12-26 06:59:57 UTC\":1,\"2019-12-26 06:59:58 UTC\":3,\"2019-12-26 06:59:59 UTC\":5,\"2019-12-26 07:00:00 UTC\":4,\"2019-12-26 07:00:01 UTC\":2,\"2019-12-26 07:00:02 UTC\":2,\"2019-12-26 07:00:03 UTC\":5,\"2019-12-26 07:00:04 UTC\":1,\"2019-12-26 07:00:05 UTC\":5,\"2019-12-26 07:00:06 UTC\":2,\"2019-12-26 07:00:08 UTC\":4,\"2019-12-26 07:00:09 UTC\":3,\"2019-12-26 07:00:11 UTC\":3,\"2019-12-26 07:00:12 UTC\":2,\"2019-12-26 07:00:14 UTC\":4,\"2019-12-26 07:00:15 UTC\":4,\"2019-12-26 07:00:16 UTC\":2,\"2019-12-26 07:00:17 UTC\":1,\"2019-12-26 07:00:18 UTC\":1,\"2019-12-26 07:00:19 UTC\":7,\"2019-12-26 07:00:20 UTC\":2,\"2019-12-26 07:00:21 UTC\":3,\"2019-12-26 07:00:23 UTC\":1,\"2019-12-26 07:00:24 UTC\":2,\"2019-12-26 07:00:25 UTC\":3,\"2019-12-26 07:00:26 UTC\":4,\"2019-12-26 07:00:27 UTC\":3,\"2019-12-26 07:00:28 UTC\":1,\"2019-12-26 07:00:29 UTC\":3,\"2019-12-26 07:00:30 UTC\":1,\"2019-12-26 07:00:31 UTC\":2,\"2019-12-26 07:00:32 UTC\":1,\"2019-12-26 07:00:33 UTC\":2,\"2019-12-26 07:00:34 UTC\":1,\"2019-12-26 07:00:35 UTC\":4,\"2019-12-26 07:00:36 UTC\":2,\"2019-12-26 07:00:37 UTC\":4,\"2019-12-26 07:00:39 UTC\":3,\"2019-12-26 07:00:40 UTC\":3,\"2019-12-26 07:00:41 UTC\":2,\"2019-12-26 07:00:43 UTC\":2,\"2019-12-26 07:00:44 UTC\":3,\"2019-12-26 07:00:45 UTC\":3,\"2019-12-26 07:00:46 UTC\":1,\"2019-12-26 07:00:47 UTC\":3,\"2019-12-26 07:00:48 UTC\":1,\"2019-12-26 07:00:49 UTC\":3,\"2019-12-26 07:00:50 UTC\":3,\"2019-12-26 07:00:51 UTC\":1,\"2019-12-26 07:00:52 UTC\":3,\"2019-12-26 07:00:53 UTC\":1,\"2019-12-26 07:00:54 UTC\":2,\"2019-12-26 07:00:55 UTC\":2,\"2019-12-26 07:00:56 UTC\":3,\"2019-12-26 07:00:57 UTC\":1,\"2019-12-26 07:00:58 UTC\":2,\"2019-12-26 07:01:00 UTC\":1,\"2019-12-26 07:01:01 UTC\":3,\"2019-12-26 07:01:02 UTC\":3,\"2019-12-26 07:01:04 UTC\":3,\"2019-12-26 07:01:05 UTC\":2,\"2019-12-26 07:01:06 UTC\":1,\"2019-12-26 07:01:07 UTC\":3,\"2019-12-26 07:01:09 UTC\":2,\"2019-12-26 07:01:11 UTC\":1,\"2019-12-26 07:01:12 UTC\":5,\"2019-12-26 07:01:13 UTC\":3,\"2019-12-26 07:01:14 UTC\":3,\"2019-12-26 07:01:16 UTC\":3,\"2019-12-26 07:01:17 UTC\":1,\"2019-12-26 07:01:18 UTC\":6,\"2019-12-26 07:01:19 UTC\":1,\"2019-12-26 07:01:21 UTC\":1,\"2019-12-26 07:01:22 UTC\":3,\"2019-12-26 07:01:23 UTC\":2,\"2019-12-26 07:01:24 UTC\":1}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# filter down to just electronics, only electronic subcategories and brands that are accurate\n",
+							"smartphone_brands = ['samsung', 'apple', 'xiaomi', 'huawei', 'oppo', 'meizu', 'nokia', 'honor', 'sony', 'oneplus', 'lg']\n",
+							"audio_brands = ['lenovo', 'acer', 'apple', 'asus', 'hp', 'xiaomi', 'jbl', 'dell', 'pioneer', 'samsung', 'kicx', 'yamaha', 'sony', 'pride',\n",
+							"                'alphard', 'element', 'bosch', 'stagg', 'alpine', 'adagio', 'huawei', 'hertz', 'elari', 'alteco', 'msi', 'edge', 'crown', 'fender',\n",
+							"                'kenwood', 'conceptclub', 'harper', 'valkiria', 'cortland', 'phantom', 'makita']\n",
+							"clock_brands = ['casio', 'apple', 'samsung', 'xiaomi', 'garmin', 'amazfit', 'orient', 'tissot', 'huawei', 'wonlex', 'aimoto', 'armani', 'boccia', 'elari', 'fossil', 'canyon']\n",
+							"tablet_brands = ['samsung', 'apple', 'lenovo', 'huawei', 'prestigio', 'acer', 'xiaomi', 'wacom', 'huion', 'microsoft']\n",
+							"telephone_brands = ['nokia', 'texet', 'panasonic', 'maxvi', 'lorelli', 'philips', 'prestigio']\n",
+							"\n",
+							"df = df.filter(\n",
+							"                                    (df['category'] == 'electronics') & \\\n",
+							"                                    (\n",
+							"                                        (df['subcategory'] == 'smartphone') & (df['brand'].isin(smartphone_brands)) | \\\n",
+							"                                        (df['subcategory'] == 'audio') & (df['brand'].isin(audio_brands)) | \\\n",
+							"                                        (df['subcategory'] == 'clocks') & (df['brand'].isin(clock_brands)) | \\\n",
+							"                                        (df['subcategory'] == 'tablet') & (df['brand'].isin(tablet_brands)) | \\\n",
+							"                                        (df['subcategory'] == 'telephone') & (df['brand'].isin(telephone_brands))\n",
+							"                                    )\n",
+							"                                )"
+						],
+						"outputs": [],
+						"execution_count": null
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {},
+						"source": [
+							"## Save Cleaned Data to a Delta Table\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "brand",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"count\":{\"a-case\":165749,\"a-derma\":366,\"absolutenewyork\":21,\"academie\":101,\"acase\":2734,\"acm\":3637,\"acnecontrolprofessional\":92,\"acuvue\":15174,\"acv\":362,\"adelline\":34,\"adidas\":259393,\"aeroforce\":3,\"agent\":283,\"agness\":4288,\"aiken\":1116,\"airjordan\":5387,\"airrower\":1949,\"airselfie\":228,\"akor\":11,\"al-ko\":653,\"albertm\":184,\"albertocasiano\":2828,\"alcon\":9825,\"alerana\":3166,\"alexika\":1366,\"algotherm\":275,\"alkor\":41588,\"alphard\":7563,\"alpika\":3697,\"alpinapabliser\":135,\"alpine\":4838,\"alteco\":177663,\"alterna\":252,\"am.pm\":1194,\"ambition\":365,\"amercook\":10,\"amet\":1,\"amova\":120,\"ampm\":3,\"amur\":5,\"anatomico\":941,\"anelli\":12,\"anemone\":6245,\"anesi\":46,\"annaanna\":1167,\"ansmann\":4179,\"anta\":14370,\"apollo\":735,\"apple\":18405305,\"aquamarine\":12111,\"aquanet\":850,\"arcancilparis\":34,\"arcansil\":2,\"ardell\":452,\"arena\":53,\"arg\":4311,\"aria\":1748,\"armateh\":61,\"art-visage\":4336,\"artmusical\":67875,\"ascot\":7244,\"asics\":20099,\"askona\":1091,\"ast\":237,\"asus\":2414,\"atamra\":12,\"atelier\":1,\"atlant\":6814,\"atoll\":21785,\"attribute\":78,\"audison\":2552,\"aurora\":40029,\"avanta\":49,\"avatar\":15868,\"avene\":5863,\"avizor\":145,\"azbuka\":5,\"babe\":57,\"babor\":4205,\"baden\":48479,\"ballarini\":5721,\"balterio\":683,\"bamboo\":145,\"bata\":1611,\"batiste\":43,\"bauer\":5080,\"belaakalitva\":340,\"belaavorona\":6,\"belashoff\":14,\"belis\":147,\"belordesign\":384,\"bene\":6704,\"berghoff\":32196,\"bergner\":5088,\"berlinger\":1452,\"berlingerhaus\":3707,\"bestbalance\":14,\"bestway\":5291,\"beurer\":246,\"bioderma\":9773,\"biofinity\":242,\"biol\":10,\"biolane\":58,\"biotherm\":553,\"bioworld\":736,\"bisou\":1475,\"bissell\":2058,\"biwec\":2848,\"blackberry\":615,\"blackdecker\":649,\"blanco\":678,\"blaumann\":426,\"blistex\":2,\"blueidea\":3265,\"boarteks\":119,\"bodyboom\":21,\"bodysculpture\":2458,\"bohemia\":1950,\"bombora\":4,\"borasco\":24889,\"bork\":3385,\"bosch\":247376,\"bosh\":127,\"bossh\":148,\"botanica\":152,\"botas\":4418,\"bourjois\":2947,\"bovidix\":2002,\"bq\":202883,\"bra\":677,\"bradex\":16716,\"bravat\":2429,\"bresser\":584,\"britop\":8,\"brizoll\":611,\"bronzallure\":208,\"brw\":582,\"bts\":2395,\"buffalo\":2495,\"bugatti\":6030,\"burgerschuhe\":1775,\"burton\":478,\"byotea\":142,\"cafemimi\":2985,\"cailyn\":23,\"caiman\":183,\"calorie\":4942,\"calve\":6242,\"cameo\":1231,\"camptown\":2970,\"candy\":8,\"capdase\":175,\"caprice\":131,\"carhome\":8512,\"carmex\":697,\"carver\":15342,\"casada\":12659,\"case\":108,\"casela\":32,\"casta\":80,\"catunltd\":1403,\"ccm\":17111,\"cellio\":139,\"centrkom\":7,\"cersanit\":12306,\"champion\":2,\"chicco\":538,\"christina\":1261,\"clarion\":166,\"clatronic\":582,\"clever\":6,\"clinique\":88,\"cmi\":406,\"cnd\":42,\"cobra\":10,\"coleman\":12867,\"colgate\":7914,\"collistar\":2496,\"colombo\":2387,\"colourpop\":1517,\"columbia\":2741,\"comma\":2210,\"compliment\":471,\"complimenti\":413,\"conceptclub\":16639,\"condtrol\":2519,\"coolinar\":10,\"coopervision\":2835,\"cosottinni\":6627,\"cover\":573,\"creo\":120,\"creoceramique\":356,\"crockid\":135,\"crosby\":634,\"crown\":175869,\"cube\":208,\"d-clinic\":631,\"dab\":428,\"daewoo\":50,\"damixa\":36,\"daniel\":16,\"dauscher\":75488,\"decathlon\":108903,\"decoroom\":26563,\"defacto\":132971,\"deko\":1314,\"delimano\":637,\"delta\":89124,\"deluxe\":992,\"denzel\":24594,\"deppa\":29467,\"dermacol\":2362,\"deuter\":2350,\"dewalt\":150482,\"dgm\":99,\"diamant\":19381,\"diamondunion\":5907,\"dinastia\":2471,\"dji\":155374,\"dlaudio\":125,\"dls\":831,\"dmichael\":269,\"doliva\":271,\"domyos\":2188,\"doogee\":115061,\"doui\":1250,\"dox\":6983,\"dr.jart\":439,\"dremel\":16611,\"drgans\":54,\"drjart\":8187,\"drop\":5,\"drsea\":183,\"dsp\":1844,\"dub\":1517,\"ducray\":1527,\"dwt\":47901,\"dyflon\":717,\"dynafit\":568,\"dzhanelli\":42,\"eago\":29,\"easylink\":77,\"eco\":4027,\"ecolab\":4144,\"ecolaboratory\":76,\"ecotex\":393,\"edelman\":830,\"edge\":5954,\"edon\":55122,\"efremov\":34164,\"eger\":154,\"egger\":7649,\"eglo\":107,\"egmont\":398,\"egp\":33,\"einhell\":16008,\"ekel\":959,\"eksmo\":152,\"electrolux\":376,\"elenberg\":41179,\"elitech\":813,\"elizavecca\":1258,\"elleci\":8,\"embryolisse\":139,\"ems\":598,\"enchantimals\":144,\"energolux\":2720,\"enkor\":560,\"envision\":1638,\"eolaboratorie\":34,\"era\":32532,\"ergo\":1805,\"esab\":4508,\"escada\":691,\"escan\":53652,\"esko\":130,\"esse\":596,\"essence\":5062,\"estrade\":1345,\"etaltech\":175,\"etor\":1067,\"etrusca\":8,\"eurolight\":348,\"eurolux\":106151,\"evamosaic\":304,\"eveline\":154,\"evelinecosmetics\":183,\"evrodetal\":598,\"faans\":1,\"farmavita\":1050,\"farmstay\":1927,\"fashion\":51,\"fassen\":22,\"favory\":4157,\"febest\":1229,\"felisatti\":281,\"femi\":2130,\"ferrino\":12737,\"festool\":6908,\"fila\":56033,\"finish\":78,\"fiorenza\":1,\"firman\":4686,\"fischer\":1104,\"fissman\":12471,\"fit\":957,\"fitokosmetik\":111,\"fitstudio\":137,\"florentina\":487,\"floresan\":1588,\"flormar\":3331,\"fly\":20675,\"focal\":1524,\"force\":2,\"forclaz\":2099,\"forward\":259,\"forza\":6349,\"fossil\":19,\"framesi\":233,\"francescodonni\":218,\"franke\":473,\"freedom\":2,\"fubag\":60250,\"funtzio\":23,\"futura\":106,\"g-case\":225,\"ga-de\":3651,\"gadkija\":45,\"galantcosmetic\":61,\"galaxy\":22858,\"gamma\":5496,\"garant\":80,\"gardena\":3315,\"garnier\":3106,\"garvalin\":16,\"gehwol\":307,\"gelflex\":2122,\"genau\":2114,\"genebre\":1792,\"gerat\":368,\"gerdamix\":802,\"gesso\":780,\"gezatone\":20845,\"ghnfitness\":1472,\"giant\":1416,\"gid-ceramic\":30,\"gimi\":82,\"gionee\":18961,\"gipfel\":7440,\"gkhair\":641,\"gladen\":807,\"glamglow\":284,\"globo\":31,\"gmslivgidromasao\":8,\"goldenconcept\":6215,\"goldenrose\":304,\"goodgrill\":40,\"google\":98668,\"gopro\":2512,\"gorenje\":835,\"gornica\":112,\"gosh\":10398,\"gran-stone\":1958,\"granfest\":6,\"granhel\":73487,\"grans\":85,\"graphite\":1540,\"greenland\":1369,\"greenpan\":5884,\"greenpro\":1361,\"greenway\":17642,\"greenworks\":36,\"greyder\":60414,\"grohe\":8398,\"gross\":925,\"grossman\":573,\"groundzero\":103,\"gtec\":252,\"guerisson\":135,\"gustavsberg\":3,\"hada\":9881,\"haday\":21002,\"haier\":31903,\"hammer\":1683,\"handwers\":3801,\"hardax\":144,\"harley-davidson\":444,\"harpercollins\":1,\"hayali\":995,\"head\":3067,\"helios\":2324,\"helix\":114,\"helvi\":1506,\"hera\":37,\"hertz\":2471,\"higashi\":3105,\"hilti\":698,\"himalaya\":71,\"himalayaherbals\":32,\"hitachi\":10009,\"hobbi\":108,\"hoco\":13048,\"holiday\":2427,\"holikaholika\":64,\"honor\":466712,\"housefit\":2200,\"hp\":329,\"hq\":5,\"htc\":62983,\"huawei\":6502226,\"huntsman\":2304,\"hurakan\":323,\"husqvarna\":4909,\"huter\":225950,\"hyundai\":73683,\"iddis\":3048,\"iek\":179,\"ikea\":64863,\"illumico\":9,\"imperial\":21324,\"incipio\":7,\"inebrya\":23,\"inglesina\":328,\"inhouse\":19947,\"inoi\":87611,\"insight\":1189,\"inter\":457,\"internedoors\":51,\"interojo\":159,\"intex\":1396,\"iope\":34,\"irbis\":36245,\"irest\":2148,\"irisk\":729,\"isntree\":559,\"ivt\":9322,\"ivy\":318,\"iwalk\":9581,\"izdatelskijdommeserakova\":30,\"izdatelstvoinstitutagajdara\":14,\"jackwolfskin\":20,\"jacobdelafon\":149,\"jade\":145149,\"jarko\":1283,\"jasic\":28256,\"jbl\":771,\"jekod\":225,\"jet\":1981,\"jetpik\":1835,\"jigott\":54,\"jika\":1265,\"jinga\":18833,\"jinkairui\":4528,\"joma\":253,\"jordan\":15156,\"junte\":639,\"jvc\":4542,\"k-psport\":233,\"kaemingk\":4102,\"kaemingkbv\":3152,\"kafekrasoty\":117,\"kaierda\":440,\"kaiser\":998,\"kajsa\":37,\"kale\":436,\"kaledomino\":13,\"kalenji\":2158,\"kalibr\":35,\"kamskaaposuda\":199,\"kangkang\":223,\"kapous\":394,\"karaja\":958,\"karavaevskaauf\":829,\"karcher\":138603,\"kartal\":9,\"kastamonu\":23874,\"kayser\":5,\"kelet\":349,\"ken\":1369,\"kenwood\":4333,\"kettler\":205,\"keumkang\":696,\"keune\":976,\"khancomics\":3,\"kicker\":333,\"kicx\":48818,\"kipocket\":2082,\"kipor\":859,\"kipsta\":11,\"kirovit\":226,\"kisswill\":13847,\"kitchenaid\":1563,\"kitfort\":52820,\"klapp\":75,\"klavuu\":29,\"klever\":13,\"kolner\":17932,\"kompasgid\":6,\"konlega\":24,\"koopman\":488,\"korpus\":24,\"kosmos\":68,\"koton\":1012,\"krasnaaglina\":137,\"krasnaapresna\":131,\"kress\":166,\"kronopol\":482,\"kronospan\":37285,\"kronostar\":5565,\"kronotex\":297,\"kronwerk\":880,\"kukmara\":7664,\"kuppersberg\":50,\"labo\":71,\"lahn\":2086,\"lakme\":139,\"lamart\":1679,\"lamelprofessional\":25,\"lancome\":5171,\"laneige\":98,\"lara\":9100,\"laroche-posay\":323,\"larocheposay\":195,\"larsen\":12757,\"laston\":12285,\"laufen\":1218,\"lauravalorosa\":814,\"lava\":39,\"leagoo\":1461,\"leeco\":8101,\"legre\":6859,\"leiya\":1,\"lemark\":10534,\"lenovo\":101637,\"leo\":5082,\"levenhuk\":9714,\"levrana\":2125,\"lezard\":1138,\"lg\":48299,\"liapis\":23,\"lider\":5354,\"lidonet\":2157,\"lifegear\":85,\"likatoprofessional\":79,\"lingua\":38,\"lirene\":217,\"livnynasos\":2,\"lom\":133,\"londa\":2176,\"loreal\":2505,\"lotos\":231,\"lucente\":399533,\"lukas\":3769,\"lumene\":697,\"lunecase\":2388,\"lutian\":97,\"lux\":6678,\"lux-tools\":63,\"luxvisage\":10767,\"m.n.y.\":9,\"machaon\":51,\"madamecoco\":174,\"madguy\":308,\"magiazolota\":1852,\"magicstones\":2843,\"magnetta\":172689,\"make-upatelier\":42,\"makita\":149204,\"mallony\":28,\"malys\":5,\"maman\":249,\"mantra\":5840,\"marcella\":1739,\"marcomen\":830,\"market\":29,\"marko\":2436,\"massagie\":10331,\"masstone\":24769,\"masterbrilliant\":1455,\"mateus\":3024,\"matrix\":2139,\"mattnawill\":613,\"mavic\":2369,\"max-pro\":117,\"maxcare\":11,\"maxcity\":984,\"maxfactor\":53,\"maxwell\":2916,\"maxxpro\":245,\"maybelline\":423,\"maybellinenewyork\":210,\"maysun\":281,\"maytoni\":47,\"mcculloch\":510,\"mdlab\":169,\"meanlove\":466,\"mebelservice\":6382,\"mediheal\":95,\"medisana\":68,\"meizu\":1018586,\"mekkan\":447,\"mentor\":657,\"merach\":5,\"merelani\":23259,\"metabo\":32368,\"michelin\":3,\"micromax\":1359,\"midea\":8043,\"mif\":2357,\"miif\":84,\"milanicosmetics\":150,\"milavitsa\":245,\"military\":5,\"millet\":596,\"millionaire\":12016,\"milwaukee\":11443,\"mirax\":744,\"missha\":1166,\"mitte\":3,\"mizon\":1111,\"mizuno\":98,\"mjx\":1963,\"modern\":313,\"mokkfi\":669,\"monix\":326,\"mosconi\":570,\"moulinvilla\":2392,\"mozaika-sintez\":14,\"mujjo\":109,\"musicroom\":1904,\"mustang\":9,\"nadoba\":1716,\"nakamichi\":302,\"nanga\":2540,\"naturasiberica\":114,\"naturehike\":7558,\"neoclassic\":72,\"neposeda\":430,\"neptun\":393,\"nexpero\":1526,\"nexttool\":194,\"nicecooker\":1182,\"nik\":1694,\"nika\":296,\"nike\":421577,\"nillkin\":36607,\"nioxin\":3891,\"nivea\":2160,\"nix\":588,\"nmp\":126,\"nokia\":323485,\"nomad\":380,\"noppies\":5490,\"nordway\":915,\"norfin\":10769,\"note\":436,\"nowodvorski\":67,\"nuxe\":861,\"nyce\":246,\"nyx\":4824,\"oase\":155,\"oasis\":4470,\"odeonlight\":8,\"oitez\":5676,\"oleo-mac\":77,\"olimp-biznes\":25,\"olmeko\":316,\"omero\":474,\"omoikiri\":1549,\"omron\":123470,\"oneplus\":261994,\"onlitop\":7,\"opple\":6,\"oppo\":3351222,\"optima\":43,\"oral-b\":24701,\"oral_b\":2653,\"orangedaily\":50,\"organicshop\":233,\"origins\":571,\"ostamebel\":21,\"oursson\":5433,\"outventure\":9252,\"outwell\":155,\"overman\":1299,\"oystercosmetics\":93,\"p.i.t.\":47278,\"paint\":75,\"palars\":459,\"palisad\":1918,\"palmers\":881,\"panasonic\":1646,\"pangao\":2923,\"papilla\":468,\"parrot\":4528,\"parus\":53,\"paton\":2420,\"patriot\":3982,\"patrol\":5693,\"paulbranco\":784,\"payot\":558,\"peak\":9129,\"pedrollo\":4100,\"pensofal\":624,\"philips\":124034,\"phyto\":107,\"picks\":2,\"pintinox\":56,\"pioneer\":15606,\"pit\":1932,\"planetaorganica\":619,\"plasmatec\":4526,\"poholy\":47,\"polar\":575,\"polaris\":137175,\"polini\":2564,\"polo\":657,\"polti\":1645,\"popurri\":130,\"prestigio\":79992,\"pride\":43236,\"princessa\":51,\"prologic\":1500,\"promate\":236,\"prosalonprofessional\":77,\"provoc\":123,\"proxima\":19,\"proxxon\":3413,\"pt-group\":4300,\"puckator\":2388,\"puma\":103619,\"pupa\":15080,\"purederm\":26,\"pyrex\":1007,\"quechua\":8952,\"queensbee\":267,\"radiant\":109,\"ralfringer\":264,\"realme\":299746,\"receptybabuskiagafi\":57,\"redblu\":38,\"redbo\":39563,\"redcastle\":79,\"redford\":1316,\"redken\":3,\"redmond\":2384,\"reebok\":22497,\"relouis\":3015,\"remax\":2574,\"remer\":36,\"remeza\":103,\"remonte\":941,\"renegade\":2756,\"resanta\":14669,\"respect\":53884,\"restime\":49109,\"rezult\":7920,\"rhapsody\":324,\"rieker\":7937,\"riminiflash\":20,\"rimmel\":77,\"rimmellondon\":255,\"ripol\":14,\"risoli\":120,\"rivacase\":418,\"rivakoch\":168,\"robertobravo\":16991,\"robins\":74,\"roca\":2574,\"rock\":3464,\"rokids\":198,\"romana\":472,\"rombica\":1267,\"ronas\":108,\"roncato\":526,\"rondell\":126250,\"ronthompson\":561,\"rooman\":12883,\"rosa\":12921,\"rosio\":6142,\"rosmen\":17,\"rossinka\":4281,\"rostok-mebel\":209,\"rotorazer\":323,\"rovus\":658,\"rowenta\":3153,\"roxy\":460,\"roxykids\":16,\"rubineta\":5115,\"rusgoldart\":18264,\"ryobi\":18010,\"s.oliver\":2605,\"salamander\":1404,\"salewa\":2114,\"salomon\":516,\"samsung\":26854990,\"sanita\":9192,\"sante\":71,\"santek\":5931,\"santeri\":16964,\"satura\":97,\"saturn\":973,\"scarlett\":43471,\"schneider\":807,\"schreuder\":1088,\"scierra\":394,\"scinic\":29,\"scovo\":10015,\"selective\":4868,\"selectiveprofessional\":136,\"selma\":91,\"senci\":2673,\"sencor\":112,\"senspa\":1084,\"serebroff\":2169,\"shark\":1,\"sharking\":5,\"sheila\":918,\"shima\":4474,\"shiseido\":1648,\"shoesrepublic\":3299,\"siberia\":3468,\"sibrteh\":1655,\"silter\":12,\"silverlit\":8362,\"sima-land\":3219,\"sindbad\":5,\"sinusprofi\":425,\"siton\":223,\"sjcam\":609,\"sjrc\":3263,\"skechers\":12123,\"skincode\":134,\"skinlite\":76,\"skovo\":53,\"sksportivnaakollekcia\":5767,\"skylor\":1519,\"sledopyt\":8739,\"slezakrav\":4,\"sman\":6424,\"smart\":2055,\"smashbox\":1673,\"smeg\":931,\"smile\":7576,\"sokolov\":351640,\"solaris\":4090,\"solomon\":1,\"sony\":235815,\"soundstream\":324,\"sp.lion\":254,\"sparky\":577,\"sparta\":1750,\"speroni\":568,\"sportelite\":1548,\"sportop\":909,\"spotter\":3882,\"spur\":5587,\"ssm\":630,\"stalker\":6158,\"stanley\":16464,\"staub\":2002,\"stavr\":434,\"stayer\":2889,\"stels\":4815,\"stenders\":245,\"stendmebel\":454,\"stermay\":132,\"sti\":636,\"stihl\":111756,\"stolicatekstila\":146,\"strobbs\":31536,\"suave\":94,\"sv\":18,\"svc\":90,\"svoboda\":117,\"svr\":517,\"swat\":29769,\"swissgear\":755,\"swissimage\":36,\"syma\":54091,\"takeit\":699,\"taller\":200,\"tamina\":7579,\"taramps\":179,\"tarkett\":21113,\"tarlan\":1070,\"tch\":6737,\"tecno\":100181,\"tefal\":360880,\"teka\":236,\"telwin\":1343,\"temp\":2050,\"tempish\":584,\"teorema\":988,\"teosa\":17229,\"texa\":314,\"texet\":11872,\"thefaceshop\":11,\"theshinestonetrade\":12636,\"tianzhanfitness\":299,\"tima\":434,\"timejump\":524,\"timi\":61,\"timilostworld\":47,\"tines\":109,\"tisa\":525,\"titan\":3582,\"tognana\":388,\"tomfarr\":7163,\"topface\":3150,\"topicrem\":181,\"torneo\":72,\"toro\":1079,\"total\":17978,\"toto\":14906,\"tp-link\":184330,\"tramontina\":7079,\"tramp\":168,\"travelite\":3992,\"triton\":279,\"triumphtree\":1419,\"trollbeads\":3219,\"trust\":1222,\"tsg\":192,\"tundra\":457,\"tvs\":1052,\"twinkly\":198,\"tyr\":1531,\"ubear\":174,\"ultraflash\":1283,\"umbro\":1057,\"umi\":42821,\"umka\":8,\"ural\":797,\"uriage\":1038,\"usmedica\":672,\"vakosa\":13,\"valkiria\":2348,\"vari\":597,\"vaude\":1257,\"vega\":7064,\"vegas\":1181,\"veho\":1903,\"venum\":131,\"verloni\":28331,\"vertex\":6763,\"vgr\":2521,\"vibe\":23,\"vibram\":18197,\"vichy\":8223,\"victoria\":99,\"victoriashu\":556,\"vihr\":1315,\"villi-vinki\":2,\"vinzer\":4597,\"vionne\":88,\"vipe\":1928,\"viper\":131,\"visavis\":22,\"vitebskiekovry\":1,\"vitek\":26809,\"vitra\":3501,\"viviennesabo\":5437,\"vivo\":886806,\"voda\":150,\"vouni\":300,\"vt\":154,\"wagner\":3698,\"warrior\":34,\"waterpik\":455,\"waterrowerclub\":240,\"weber\":113,\"weekend\":4973,\"wehncke\":1864,\"wella\":1299,\"wellberg\":7804,\"wellneo\":4323,\"welss\":28,\"wenger\":870,\"wert\":1564,\"wester\":186,\"wilo\":1342,\"wortex\":4109,\"x-foot\":1378,\"x-level\":11144,\"xiaomi\":13681040,\"xtep\":75,\"xyg\":20,\"yamaguchi\":10038,\"yjfitness\":341,\"yota\":140,\"yotrix\":220,\"yuandong\":540,\"yvesrocher\":496,\"yvessaintlaurent\":2317,\"zapco\":349,\"zibelino\":71,\"zipp\":1274,\"zongshen\":2941,\"zte\":50678,\"zubr\":17172}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"df.write.format(\"delta\").mode(\"overwrite\").option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/cleaned_data_electronics\")"
+						],
+						"outputs": [],
+						"execution_count": null
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/2 - Data Engineering')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "e0b61cee-fc1b-417a-956a-22e1965ca72a"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"source": [
+							"Copyright (c) Microsoft Corporation. \n",
+							"Licensed under the MIT license. \n",
+							"# Data Engineering\n",
+							"\n",
+							"After cleaning the data, we transform it in order to capture relevant metrics for ML modeling. These metrics  capture information related to:\n",
+							"* Users & sessions\n",
+							"* Buying behavior\n",
+							"* Product details - brand, category, subcategories, product\n",
+							"\n",
+							"Results are written to the delta lake.\n",
+							""
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Library Imports\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import pyspark\n",
+							"from pyspark.sql import functions as F\n",
+							"from pyspark.sql.functions import *\n",
+							"from pyspark.sql import *\n",
+							"from pyspark.sql.types import *"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Read in Data from Delta Lake"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"data_lake_account_name = ''\n",
+							"file_system_name = ''"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"full_dataset = ''"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"paths = [f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/cleaned_data_electronics\"]\n",
+							"full_dataset = spark.read.format(\"delta\").load(*paths)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# add month & year, re-order columns\n",
+							"cleaned_df = full_dataset.withColumn('month', month('event_time')) \\\n",
+							"    .withColumn('year', year('event_time')) \\\n",
+							"    .drop('category_code') \\\n",
+							"    .select('user_id', 'year', 'month', 'event_type', 'product_id', 'category_id', 'category', 'subcategory', 'brand', 'price', 'user_session', 'event_time')"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# write cleaned_df table to an intermediate spark table\n",
+							"cleaned_df.write.format(\"delta\").mode(\"overwrite\").option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/cleaned_df\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# read cleaned_df table from intermediate spark table\n",
+							"cleaned_df = spark.read.format(\"delta\").load(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/cleaned_df\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Data Transformation\n",
+							"\n",
+							"### Growth Indicator\n",
+							"\n",
+							"Classify customers as growth (1) or no growth (0) based on the month-over-month change in net revenue.\n",
+							"\n",
+							"1. Growth if there is a >10% net revenue increase\n",
+							"1. No growth if there is a >10% net revenue decrease\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"101875240\":2020,\"107620212\":2020,\"128968633\":2019,\"136662675\":2019,\"145611266\":2019}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# get monthly revenue\n",
+							"growth = cleaned_df.filter(col('event_type') == 'purchase') \\\n",
+							"    .withColumn('revenue', cleaned_df['price'].cast('double'))\\\n",
+							"    .groupBy('user_id', 'year', 'month') \\\n",
+							"    .sum('revenue') \\\n",
+							"    .withColumnRenamed('sum(revenue)', 'total_net_revenue') \\\n",
+							"    .orderBy('user_id', 'year', 'month')"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"430640726\":2020,\"436540545\":2020,\"461023190\":2019,\"476777607\":4039}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# get deltas for previous month\n",
+							"from pyspark.sql.window import Window\n",
+							"from pyspark.sql.functions import lag\n",
+							"\n",
+							"window_specs = Window.partitionBy('user_id').orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"growth_lag = growth.withColumn('last_month_revenue', lag(growth.total_net_revenue).over(window_specs).cast('double'))\n",
+							"growth_delta = growth_lag.withColumn('delta_net_revenue', (growth_lag.total_net_revenue - growth_lag.last_month_revenue).cast('double'))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# identify growth vs. no growth customers\n",
+							"# growth defined as +/-10% revenue month-over-month\n",
+							"\n",
+							"df_growth_a = growth_delta.withColumn('percent_delta_revenue', growth_delta['delta_net_revenue']/growth_delta['last_month_revenue'].cast('double'))\n",
+							"df_growth = df_growth_a.withColumn('growth', \n",
+							"        when(df_growth_a['percent_delta_revenue'] > .1, 1)\n",
+							"        .when(df_growth_a['percent_delta_revenue'] < -.1, 0)) \\\n",
+							"        .drop('last_month_revenue', 'delta_net_revenue', 'total_net_revenue', 'percent_delta_revenue') \\\n",
+							"        .filter(col('growth').isNotNull())"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Aggregated Metrics\n",
+							"\n",
+							"Transform data to produce metrics related to user sessions, buying behavior, and product categories. All features are aggregated on a per-user, per-month basis.\n",
+							"\n",
+							"### Session & Buying Metrics\n",
+							"\n",
+							"* Number of sessions\n",
+							"* Average session duration\n",
+							"* Average conversion rate\n",
+							"* Average order value\n",
+							"* Average cart abandon rate\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# sessions per user\n",
+							"sessions_per_user_per_month = cleaned_df.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(countDistinct('user_session').alias('sessions_per_user_per_month')) \\\n",
+							"    .fillna({'sessions_per_user_per_month': 0}) \\\n",
+							"    .orderBy('user_id', 'year', 'month')"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg session duration\n",
+							"# time between start & end of each session, aggregated per user per month\n",
+							"session_durations = cleaned_df.groupBy('user_id', 'year', 'month', 'user_session') \\\n",
+							"    .agg(\n",
+							"        unix_timestamp(min('event_time')).alias('session_start_time'),\n",
+							"        unix_timestamp(max('event_time')).alias('session_end_time')) \\\n",
+							"    .withColumn('session_duration', col('session_end_time')-col('session_start_time')) \\\n",
+							"    .drop('user_session', 'session_start_time', 'session_end_time')\n",
+							"\n",
+							"avg_session_duration_per_user_per_month = session_durations.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('session_duration').cast('double').alias('avg_session_duration_per_user_per_month')) \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_session_duration_per_user_per_month.orderBy(desc('avg_session_duration_per_user_per_month')).show(5)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg conversion rate\n",
+							"# avg # purchases / # views per user per month\n",
+							"avg_conversion_rate_per_user_per_month = cleaned_df.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(\n",
+							"        count(when(col('event_type') == 'view', True)).alias('num_views'),\n",
+							"        count(when(col('event_type') == 'purchase', True)).alias('num_purchases')) \\\n",
+							"    .fillna({'num_views': 0, 'num_purchases': 0}) \\\n",
+							"    .withColumn('avg_conversion_rate_per_user_per_month', (col('num_purchases')/col('num_views')).cast('double')) \\\n",
+							"    .drop('num_views', 'num_purchases') \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_conversion_rate_per_user_per_month.orderBy(desc('avg_conversion_rate_per_user_per_month')).show(5)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg order value\n",
+							"# price per user per month, for purchases only\n",
+							"avg_order_value_per_user_per_month = cleaned_df.filter(col('event_type') == 'purchase') \\\n",
+							"    .groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('price').cast('double').alias('avg_order_value_per_user_per_month')) \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_order_value_per_user_per_month.show(5)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg_cart_abandon_rate\n",
+							"# items that were added to cart, but not purchased\n",
+							"abandon_rate_per_session = cleaned_df.filter((col('event_type') == 'purchase') | (col('event_type') == 'cart')) \\\n",
+							"    .groupBy('user_id', 'year', 'month', 'user_session', 'product_id') \\\n",
+							"    .pivot('event_type').agg(count('product_id')) \\\n",
+							"    .fillna({'cart':0, 'purchase':0}) \\\n",
+							"    .withColumn('cart_abandon_rate', (col('cart')-col('purchase'))/col('cart'))\n",
+							"\n",
+							"avg_cart_abandon_rate = abandon_rate_per_session.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('cart_abandon_rate').cast('double').alias('avg_cart_abandon_rate'))\n",
+							"\n",
+							"#avg_cart_abandon_rate.show(5)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Brand, Subcategory, & Product Metrics\n",
+							"\n",
+							"For the top 5 most popular values in each product-related category (brand, subcategory, and product_id), identify the frequency of user clickstream interactions (product views, add to cart, and purchases)."
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"104655840\":2020,\"113868975\":2020,\"120701478\":4040,\"128968633\":6060,\"138365902\":2019,\"153449371\":4039,\"158131855\":2020,\"158971609\":2019,\"191365178\":2019,\"191555348\":2020,\"195082191\":2019}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# reusable function\n",
+							"## event_type = clickstream activity (view, cart, purchase)\n",
+							"## match_type = product-related column (brand, subcategory, product_id)\n",
+							"\n",
+							"def get_top_5(df, event_type, match_type):\n",
+							"\n",
+							"    # get list of top 5\n",
+							"    top_5_list = df.filter(col('event_type')==event_type).groupBy(match_type).pivot('event_type') \\\n",
+							"        .agg(count('user_session')).orderBy(desc(event_type)) \\\n",
+							"        .select(match_type).limit(5).rdd.flatMap(lambda x: x).collect()\n",
+							"        \n",
+							"    # filter df for top 5\n",
+							"    top_5_df = df.where(col(match_type).isin(top_5_list)) \\\n",
+							"        .filter(col('event_type')==event_type) \\\n",
+							"        .groupBy('user_id', 'year', 'month') \\\n",
+							"        .pivot(match_type) \\\n",
+							"        .agg(count('user_session'))\n",
+							"\n",
+							"    # reformat types / naming convention\n",
+							"    if (event_type == 'view'):\n",
+							"        event_type = 'viewed'\n",
+							"    elif (event_type == 'cart'):\n",
+							"        event_type = 'added'\n",
+							"    else:\n",
+							"        event_type = 'purchased'\n",
+							"\n",
+							"    # convert to binary & count columns\n",
+							"    for i in range(1, len(top_5_list)+1):\n",
+							"        i_name = top_5_list[i-1]\n",
+							"        top_5_df = top_5_df.withColumn(f'{match_type}_{i_name}_{event_type}_binary', when(col(i_name).isNotNull(), 1).otherwise(0)) \\\n",
+							"            .withColumnRenamed(f'{i_name}', f'{match_type}_{i_name}_{event_type}_count') \\\n",
+							"            .fillna({f'{match_type}_{i_name}_{event_type}_count': 0})\n",
+							"\n",
+							"    return top_5_df"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# brands\n",
+							"top_brands_viewed = get_top_5(cleaned_df, 'view', 'brand')\n",
+							"top_brands_added = get_top_5(cleaned_df, 'cart', 'brand')\n",
+							"top_brands_purchased = get_top_5(cleaned_df, 'purchase', 'brand')\n",
+							"\n",
+							"# subcategories\n",
+							"top_subcategories_viewed = get_top_5(cleaned_df, 'view', 'subcategory')\n",
+							"top_subcategories_added = get_top_5(cleaned_df, 'cart', 'subcategory')\n",
+							"top_subcategories_purchased = get_top_5(cleaned_df, 'purchase', 'subcategory')\n",
+							"\n",
+							"# products\n",
+							"top_products_viewed = get_top_5(cleaned_df, 'view', 'product_id')\n",
+							"top_products_added = get_top_5(cleaned_df, 'cart', 'product_id')\n",
+							"top_products_purchased = get_top_5(cleaned_df, 'purchase', 'product_id')"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Join DataFrames into Single DataFrame"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# join dfs\n",
+							"def join_dfs (df_list):\n",
+							"    joined_df = df_growth\n",
+							"    for l in df_list:\n",
+							"        joined_df = joined_df.join(l, ['user_id', 'year', 'month'], how='left')\n",
+							"    return joined_df\n",
+							"\n",
+							"features_df = join_dfs([sessions_per_user_per_month, \\\n",
+							"    avg_session_duration_per_user_per_month, \\\n",
+							"    avg_conversion_rate_per_user_per_month, \\\n",
+							"    avg_order_value_per_user_per_month, \\\n",
+							"    avg_cart_abandon_rate, \\\n",
+							"    top_brands_viewed, top_brands_added, top_brands_purchased, \\\n",
+							"    top_subcategories_viewed, top_subcategories_added, top_subcategories_purchased, \\\n",
+							"    top_products_viewed, top_products_added, top_products_purchased\n",
+							"    ]).fillna(0)\n",
+							"\n",
+							"# display(features_df.take(15))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Save Transformed Data to a Delta Table\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# write transformed data to spark table\n",
+							"features_df.write.format('delta').mode('overwrite').option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/transformed_data\")"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/3 - Feature Engineering')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "158c7379-1a06-405a-b71c-cd78a8676026"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"source": [
+							"Copyright (c) Microsoft Corporation. \n",
+							"Licensed under the MIT license. \n",
+							"# Feature Engineering\n",
+							"\n",
+							"Analyze the transformed data and select the features that will be used in the model using the following steps in this notebook:\n",
+							"\n",
+							"1. Exploratory data analysis\n",
+							"2. Remove outliers\n",
+							"3. Correlation analysis\n",
+							"4. Feature selection\n",
+							"5. Save results to data lake"
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Library Imports\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import pyspark\n",
+							"from pyspark.sql import functions as F\n",
+							"from pyspark.sql.functions import *\n",
+							"from pyspark.sql import DataFrame\n",
+							"from pyspark.sql.types import *\n",
+							"from pyspark.ml.feature import *\n",
+							"from pyspark.ml.stat import Correlation\n",
+							"import pandas as pd\n",
+							"import numpy as np\n",
+							"import matplotlib.pyplot as plt\n",
+							"import seaborn as sns\n",
+							"spark.conf.set('spark.sql.execution.arrow.enabled', False)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Read in Transformed Data from Delta Lake Table\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"data_lake_account_name = ''\n",
+							"file_system_name = ''"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# transformed df\n",
+							"df = spark.read.format(\"delta\").load(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/transformed_data\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"488123390\":2019,\"512364736\":2020,\"512369908\":2019,\"512370018\":2019,\"512379865\":2019,\"512384653\":2019,\"512386548\":2019,\"512392611\":2019,\"512393868\":2019,\"512414566\":2019,\"512418285\":2019,\"512418471\":2019,\"512425684\":2019,\"512427417\":2019,\"512435438\":4040,\"512438804\":2019,\"512438845\":2019,\"512444862\":2020,\"512452103\":2019,\"512456092\":2020,\"512472631\":2019,\"512483850\":2019,\"512497832\":2020,\"512517221\":2019,\"512526136\":2020,\"512534999\":2020,\"512556100\":2019,\"512558706\":2019,\"512566480\":2020,\"512582269\":2019,\"512585802\":2020,\"512586496\":2019,\"512587895\":2020,\"512602221\":2019,\"512609851\":2019,\"512611635\":2019,\"512612244\":2019,\"512623872\":2019,\"512644286\":2019,\"512659613\":2019,\"512691846\":2020,\"512697033\":2019,\"512699563\":2019,\"512704796\":2020,\"512705674\":2019,\"512711981\":2019,\"512715167\":2019,\"512721349\":2020,\"512734590\":2020,\"512744167\":2019,\"512747102\":2019,\"512751237\":2019,\"512751429\":2019,\"512783709\":2019,\"512785130\":2019,\"512788087\":2019,\"512798571\":2019,\"512821238\":2019,\"512823336\":2020,\"512825144\":2019,\"512835020\":2019,\"512845454\":2020,\"512850989\":2020,\"512852040\":2020,\"512864097\":2019,\"512868167\":2019,\"512878509\":2019,\"512886172\":2019,\"512887880\":2019,\"512890202\":2020,\"512897231\":2019,\"512900267\":2019,\"512903116\":2020,\"512909445\":2019,\"512921452\":2019,\"512922520\":2019,\"512947401\":2019,\"512976323\":2020,\"512977707\":2019,\"512990895\":2019,\"513005802\":2020,\"513006899\":2019,\"513006940\":2019,\"513011827\":2019,\"513021852\":2020,\"513026233\":2019,\"513050685\":2019,\"513051334\":2019,\"513059322\":2019,\"513061464\":2019,\"513065665\":2020,\"513066682\":2019,\"513073361\":2020,\"513076573\":2020,\"513077628\":2020,\"513086942\":2019,\"513096118\":2019,\"513103391\":2020,\"513143283\":2020,\"513156354\":2019,\"513175165\":2020,\"513201980\":2020,\"513240842\":2019,\"513264716\":2019,\"513288176\":2020,\"513292769\":2019,\"513294886\":2019,\"513295884\":2019,\"513318310\":2020,\"513362234\":2020,\"513366526\":2019,\"513375931\":2019,\"513376719\":2020,\"513382590\":2019,\"513396714\":2019,\"513404163\":2019,\"513438986\":2019,\"513440295\":2020,\"513447241\":2019,\"513463948\":2019,\"513465928\":2019,\"513474141\":2019,\"513520310\":2020,\"513520393\":2019,\"513523794\":2019,\"513572259\":2019,\"513573570\":2019,\"513577873\":2019,\"513579111\":2020,\"513582350\":2020,\"513583419\":2020,\"513612248\":2019,\"513613557\":2020,\"513627646\":2019,\"513628669\":2019,\"513633813\":2019,\"513642753\":2019,\"513651601\":2019,\"513667777\":2019,\"513729774\":2019,\"513736395\":2019,\"513740213\":2019,\"513741043\":2019,\"513773031\":2020,\"513777173\":2020,\"513784794\":2019,\"513804055\":2019,\"513913058\":2019,\"513916134\":2019,\"513928944\":2020,\"513936720\":2019,\"513938921\":2019,\"513997409\":2019,\"514005144\":2019,\"514008840\":2019,\"514017091\":2020,\"514036410\":2020,\"514061073\":2019,\"514065514\":2019,\"514080126\":2020,\"514110348\":2019,\"514135292\":2019,\"514143401\":2019,\"514146525\":2019,\"514150988\":2019,\"514155908\":2019,\"514179570\":2020,\"514188199\":2019,\"514233308\":2019,\"514243517\":2020,\"514256239\":2020,\"514266673\":2020,\"514275667\":2020,\"514282598\":2020,\"514283615\":2019,\"514306442\":2020,\"514349192\":2019,\"514366163\":2019,\"514420880\":2019,\"514440292\":2019,\"514440658\":2020,\"514450284\":2020,\"514456510\":2019,\"514470639\":2019,\"514474806\":2019,\"514503111\":2020,\"514505563\":2020,\"514544886\":2019,\"514614508\":2020,\"514625801\":2020,\"514626834\":2020,\"514627225\":2019,\"514650220\":2019,\"514724295\":2019,\"514748353\":2019,\"514751635\":2020,\"514763291\":2020,\"514820548\":2019,\"514829050\":2020,\"514844830\":2020,\"514879586\":2019,\"514889449\":2019,\"514891902\":2020,\"514901205\":2019,\"514905339\":2020,\"514933268\":2019,\"514941624\":2020,\"514966080\":2020,\"514996695\":2020,\"515006982\":2020,\"515041347\":2020,\"515049682\":2019,\"515060549\":2019,\"515063374\":2019,\"515074637\":2019,\"515107675\":2020,\"515130522\":2020,\"515177620\":2019,\"515247373\":2019,\"515268709\":2020,\"515299092\":2019,\"515341915\":2020,\"515355519\":2020,\"515359883\":2019,\"515370510\":2020,\"515460318\":2020,\"515520547\":2019,\"515526533\":2019,\"515635218\":2019,\"515667587\":2019,\"515669750\":2020,\"515690463\":2020,\"515767305\":2019,\"515772630\":2019,\"515786154\":2019,\"515788167\":2020,\"515823103\":2019,\"515829984\":2020,\"515830479\":2020,\"515843583\":2020,\"515849915\":2020,\"515855015\":2020,\"515993365\":2020,\"516013963\":2019,\"516027556\":2020,\"516051722\":2019,\"516111887\":2020,\"516140359\":2020,\"516201054\":2019,\"516218345\":2019,\"516228555\":2019,\"516253343\":2019,\"516260084\":2019,\"516268773\":2019,\"516270117\":2020,\"516270311\":2020,\"516323509\":2019,\"516351957\":2019,\"516369407\":2019,\"516394899\":2019,\"516431376\":2020,\"516484249\":2020,\"516524312\":2019,\"516567021\":2019,\"516572895\":2020,\"516579756\":2020,\"516606449\":2019,\"516617362\":2020,\"516661205\":2019,\"516712692\":2020,\"516719131\":2019,\"516737595\":2020,\"516772367\":2019,\"516811276\":2020,\"516824806\":2019,\"516855227\":2019,\"516914721\":2019,\"516929731\":2020,\"516993548\":2019,\"516996789\":2019,\"517040519\":2019,\"517064801\":2019,\"517084565\":2020,\"517230671\":2019,\"517234193\":2019,\"517295849\":2020,\"517445697\":2020,\"517449038\":2019,\"517483912\":2020,\"517486455\":2019,\"517549996\":2019,\"517574313\":2019,\"517585624\":2019,\"517634616\":2019,\"517662890\":2019,\"517693861\":2019,\"517785710\":2019,\"517801156\":2019,\"517852804\":2020,\"517869721\":2020,\"517928776\":2019,\"517947183\":2019,\"517960805\":2020,\"518016569\":2019,\"518040208\":2020,\"518046904\":2019,\"518066210\":2019,\"518296502\":2019,\"518371518\":2019,\"518412175\":2019,\"518481791\":2019,\"518486763\":2019,\"518512901\":2019,\"518633388\":2019,\"518635485\":2019,\"518635746\":2020,\"518698320\":2020,\"518706313\":2019,\"518767278\":2019,\"518818000\":2019,\"518867946\":2020,\"518885390\":2019,\"518888488\":2019,\"518894192\":2019,\"518921777\":2020,\"518926716\":2019,\"518929221\":2020,\"518933051\":2020,\"518984823\":2019,\"518989500\":2019,\"518998694\":2019,\"519021834\":2019,\"519146064\":2019,\"519162315\":2019,\"519202914\":2020,\"519216907\":2019,\"519227511\":2019,\"519270038\":2019,\"519280403\":2019,\"519363875\":2019,\"519411110\":2019,\"519441146\":2019,\"519446706\":2019,\"519606142\":2019,\"519687545\":2019,\"519748587\":2019,\"519784764\":2019,\"519798946\":2019,\"519819651\":2019,\"519847726\":2020,\"519889676\":2020,\"520019963\":2020,\"520205872\":2020,\"520244506\":2020,\"520286789\":2020,\"520302152\":2019,\"520324990\":2019,\"520383558\":2020,\"520441876\":2019,\"520519441\":2019,\"520652482\":2019,\"520687782\":2019,\"520740314\":2019,\"520756251\":2019,\"520777310\":2019,\"520861060\":2019,\"520867389\":2020,\"521131090\":2019,\"521196667\":2019,\"521247571\":2019,\"521277830\":2019,\"521416685\":2019,\"521445203\":2019,\"521579452\":2020,\"521597103\":2020,\"521629615\":2020,\"521772025\":2019,\"521821482\":2019,\"521841087\":2019,\"522012060\":2020,\"522022874\":2020,\"522025757\":2019,\"522026935\":2019,\"522047370\":2020,\"522082588\":2019,\"522168492\":2019,\"522201449\":2019,\"522224589\":2020,\"522231406\":2019,\"522231955\":2019,\"522246136\":2019,\"522385474\":2019,\"522504212\":2019,\"522574593\":2020,\"522633571\":2020,\"522716917\":2019,\"522726883\":2019,\"522740053\":2019,\"522860137\":2019,\"522979084\":2020,\"523109421\":2019,\"523157292\":2019,\"523165169\":2020,\"523221474\":2020,\"523239204\":2019,\"523571142\":2019,\"523589228\":2020,\"523605652\":2019,\"523724412\":2020,\"523955697\":2019,\"524050153\":2019,\"524131754\":2020,\"524339215\":2019,\"524433667\":2020,\"524464143\":2019,\"524473299\":2019,\"524495071\":2020,\"524514876\":2019,\"524799009\":2020,\"525035141\":2019,\"525093424\":2019,\"525102273\":2019,\"525178653\":2020,\"525216377\":2019,\"525249426\":2020,\"525265689\":2019,\"525496434\":2019,\"525496787\":2020,\"525621046\":2019,\"525636197\":2020,\"525695231\":2019,\"525869157\":2019,\"525891733\":2020,\"525970152\":2019,\"525974035\":2020,\"526029880\":2019,\"526210258\":2019,\"526581760\":2019,\"526641727\":2019,\"526952678\":2019,\"526977067\":2019,\"527044990\":2020,\"527154346\":2020,\"527221038\":2019,\"527277009\":2020,\"527282139\":2019,\"527287045\":2019,\"527335735\":2019,\"527351224\":2019,\"527475914\":2020,\"527577026\":2019,\"527579118\":2020,\"527813133\":2020,\"527917787\":2019,\"527921178\":2020,\"527934473\":2020,\"527964028\":2019,\"528002725\":2019,\"528020241\":2020,\"528090448\":2019,\"528367945\":2019,\"528391305\":2020,\"528419964\":2019,\"528444454\":2019,\"529063181\":2020,\"529063732\":2019,\"529162904\":2019,\"529179938\":2019,\"529187269\":2020,\"529224636\":2020,\"529428893\":2019,\"529436654\":2019,\"529543810\":2020,\"529594048\":2019,\"529668768\":2019,\"529692593\":2019,\"529715163\":2019,\"529728399\":2019,\"529795632\":2019,\"529802498\":2020,\"529882777\":2019,\"530035207\":2019,\"530041473\":2019,\"530060000\":2019,\"530256143\":2019,\"530300951\":2019,\"530379104\":2020,\"530385548\":2019,\"530426291\":2019,\"530439128\":2019,\"530454615\":2019,\"530539596\":2020,\"530564762\":2019,\"530746712\":2019,\"530874396\":2019,\"530920870\":2019,\"530930049\":2020,\"530953802\":2019,\"530967768\":2019,\"531219683\":2019,\"531429085\":2019,\"531504240\":2019,\"531690387\":2019,\"531756109\":2019,\"531894044\":2020,\"531948766\":2020,\"532039642\":2019,\"532219746\":2019,\"532277617\":2020,\"532680267\":2019,\"532691364\":2019,\"532729263\":2019,\"532957874\":2020,\"533019023\":2019,\"533148541\":2019,\"533398468\":2019,\"533482453\":2020,\"533681157\":2019,\"533735150\":2019,\"533744938\":2020,\"533992686\":2019,\"534169711\":2020,\"534206749\":2019,\"534653092\":2019,\"534709241\":2020,\"534730302\":2019,\"534749091\":2019,\"534749324\":2020,\"534945677\":2020,\"534984937\":2020,\"535067706\":2019,\"535089858\":2019,\"535090853\":2020,\"535281297\":2020,\"535399065\":2019,\"535406876\":2019,\"535407673\":2020,\"535480487\":2019,\"535843281\":2019,\"535872987\":2019,\"535919979\":2019,\"535948928\":2019,\"536045466\":2019,\"536096066\":2019,\"536132326\":2020,\"536350560\":2019,\"536408158\":2019,\"536566074\":2020,\"536730991\":2019,\"536792430\":2020,\"536817380\":2019,\"537112767\":2019,\"537114102\":2019,\"537147334\":2020,\"537179932\":2019,\"537232559\":2019,\"537416063\":2019,\"537460969\":2019,\"537598828\":2019,\"537846396\":2019,\"538063780\":2019,\"538066821\":2020,\"538069529\":2019,\"538086503\":2019,\"538147338\":2019,\"538168678\":2019,\"538251250\":2019,\"538269913\":2019,\"538426831\":2019,\"538430961\":2019,\"538534592\":2019,\"538561815\":2019,\"538700241\":2019,\"538712646\":2019,\"538737089\":2019,\"539375329\":2020,\"539433255\":2020,\"539677927\":2019,\"539726712\":2020,\"539758650\":2019,\"539860843\":2019,\"539962112\":2019,\"540013047\":2019,\"540027623\":2019,\"540052194\":2020,\"540170897\":2019,\"540613453\":2019,\"540642255\":2020,\"540779457\":2019,\"540823105\":2019,\"540948958\":2020,\"541065901\":2019,\"541130743\":2020,\"541205104\":2019,\"541292692\":2019,\"541464284\":2019,\"541496006\":2019,\"541702503\":2019,\"541783269\":2019,\"541906677\":2020,\"542001708\":2019,\"542004840\":2019,\"542005293\":2019,\"542011789\":2019,\"542012975\":2019,\"542071283\":2019,\"542213939\":2019,\"542282962\":2020,\"542382392\":2019,\"542388609\":2019,\"542448392\":2019,\"542468271\":2019,\"542497923\":2019,\"542699414\":2019,\"542721545\":2019,\"542741356\":2019,\"542753808\":2019,\"542756356\":2020,\"542849444\":2019,\"542944783\":2019,\"543013520\":2019,\"543091127\":2020,\"543123081\":2019,\"543145249\":2019,\"543190150\":2020,\"543453346\":2019,\"543592113\":2019,\"543665106\":2020,\"543672402\":2020,\"543679531\":2019,\"543889181\":2019,\"543942648\":2020,\"543952688\":2019,\"544037324\":2020,\"544098744\":2019,\"544119587\":2019,\"544146615\":2019,\"544210274\":2019,\"544255768\":2019,\"544353889\":2020,\"544354527\":2020,\"544358822\":2019,\"544431603\":2019,\"544432289\":2019,\"544451616\":2019,\"544495283\":2019,\"544508667\":2019,\"544729986\":2020,\"544777603\":2019,\"544816392\":2020,\"544844429\":2020,\"545042232\":2020,\"545043183\":2019,\"545049009\":2020,\"545095416\":2020,\"545309646\":2019,\"545385989\":2019,\"545598314\":2019,\"545663397\":2020,\"545701037\":2019,\"545814951\":2019,\"545840768\":2019,\"545845535\":2019,\"545861415\":2020,\"545874361\":2019,\"545883104\":2019,\"545923943\":2019,\"545928980\":2019,\"545976760\":2019,\"546184093\":2019,\"546194148\":2020,\"546367111\":2019,\"546388764\":2020,\"546400465\":2019,\"546543067\":2020,\"546589590\":2019,\"546678186\":2019,\"546966184\":2019,\"547216797\":2019,\"547311917\":2019,\"547320539\":2019,\"547325898\":2019,\"547330965\":2019,\"547384319\":2019,\"547602086\":2019,\"547627350\":2020,\"547779160\":2020,\"547833759\":2019,\"547893286\":2020,\"547913389\":2020,\"547934043\":2020,\"548090725\":2019,\"548123179\":2020,\"548191430\":2020,\"548377835\":2019,\"548437403\":2020,\"548492220\":2020,\"548548364\":2019,\"548571180\":2019,\"548615978\":2019,\"548780670\":2019,\"548912646\":2020,\"548985588\":2019,\"549018574\":2019,\"549206481\":2019,\"549226198\":2019,\"549576976\":2020,\"549649567\":2019,\"549685248\":2019,\"549745659\":2019,\"550022554\":2019,\"550074427\":2019,\"550360187\":2019,\"550399866\":2020,\"550467424\":2020,\"550469998\":2019,\"550503293\":2019,\"550680913\":2019,\"550984082\":2019,\"551045038\":2020,\"551178665\":2020,\"551185512\":2019,\"551362852\":2020,\"551386780\":2019,\"551622153\":2019,\"551665882\":2019,\"551693113\":2019,\"551725579\":2019,\"551734542\":2019,\"551769284\":2019,\"551798922\":2019,\"551799824\":2019,\"551960557\":2020,\"552067060\":2019,\"552090017\":2020,\"552175576\":2019,\"552200668\":2020,\"552387763\":2019,\"552677633\":2019,\"552725523\":2019,\"552793446\":2019,\"553120939\":2019,\"553359776\":2019,\"553362784\":2020,\"553399137\":2020,\"553402860\":2019,\"553491932\":2019,\"553636286\":2019,\"553699124\":2020,\"553719075\":2019,\"553742270\":2020,\"553876606\":2019,\"554220818\":2019,\"554236966\":2019,\"554257749\":2019,\"554463802\":2020,\"554568653\":2020,\"554678897\":2020,\"554717449\":2019,\"554935755\":2019,\"554979728\":2019,\"555007762\":2019,\"555228551\":2019,\"555275060\":2019,\"555488866\":2020,\"555523610\":2019,\"555612492\":2019,\"555617759\":2019,\"555640207\":2020,\"555672828\":2020,\"555890665\":2020,\"555963812\":2019,\"556062596\":2019,\"556475423\":2019,\"556624079\":2019,\"556625652\":2020,\"556657417\":2020,\"556666421\":2019,\"556713754\":2020,\"556726504\":2019,\"556735931\":2019,\"556764765\":2020,\"556785699\":2019,\"556845297\":2019,\"557154502\":2019,\"557157015\":2019,\"557252799\":2019,\"557289634\":2019,\"557303424\":2019,\"557416654\":2019,\"557438450\":2019,\"557642444\":2020,\"557879250\":2020,\"557930671\":2020,\"558111352\":2020,\"558154310\":2019,\"558162168\":2019,\"558198601\":2019,\"558275954\":2020,\"558285960\":2019,\"558422256\":2019,\"558525602\":2019,\"558583043\":2019,\"558743070\":2019,\"558834179\":2019,\"558839768\":2019,\"559021118\":2019,\"559108280\":2019,\"559407804\":2019,\"559492334\":2019,\"559677071\":2019,\"559849322\":2019,\"559902356\":2019,\"559985504\":2019,\"559992699\":2020,\"560043277\":2019,\"560045026\":2019,\"560074272\":2019,\"560261168\":2019,\"560371333\":2020,\"560502653\":2020,\"560507754\":2019,\"560542593\":2019,\"560557083\":2019,\"560584564\":2019,\"560674615\":2019,\"560694280\":2020,\"560700555\":2019,\"560729864\":2020,\"560879143\":2019,\"560882422\":2019,\"560951966\":2019,\"560984885\":2019,\"560989668\":2019,\"561050612\":2019,\"561067105\":2019,\"561125943\":2019,\"561152823\":2019,\"561260803\":2019,\"561285563\":2020,\"561372314\":2019,\"561455634\":2019,\"561465047\":2019,\"561496136\":2019,\"561590636\":2019,\"561596612\":2020,\"561617126\":2019,\"561764964\":2019,\"561779431\":2019,\"561825447\":2019,\"562032145\":2019,\"562177924\":2019,\"562229047\":2019,\"562463314\":2019,\"562471595\":2020,\"562607823\":2019,\"562654869\":2019,\"562730135\":2019,\"562769719\":2019,\"562849270\":2020,\"562868484\":2019,\"563001930\":2019,\"563247287\":2020,\"563410147\":2019,\"563463780\":2019,\"563599039\":2019,\"563663461\":2019,\"563768550\":2020,\"563946321\":2019,\"563946885\":2020,\"563982962\":2019,\"564028766\":2020,\"564093882\":2019,\"564432284\":2019,\"564440153\":2019,\"564531242\":2020,\"564561130\":2019,\"564567410\":2019,\"564576335\":2020,\"564629311\":2019,\"564832159\":2019,\"565410587\":2020,\"565600712\":2019,\"565613191\":2020,\"565619062\":2019,\"565902758\":2019,\"565990997\":2019,\"566103025\":2019,\"566117437\":2019,\"566152511\":2019,\"566228662\":2019,\"566667307\":2020,\"566921226\":2019,\"567143510\":2020,\"567562421\":2020,\"568265897\":2020,\"568298218\":2020,\"568640800\":2020,\"569648778\":2020,\"569652757\":2019,\"569777735\":2020,\"570130233\":2020,\"570313343\":2020,\"571009735\":2019,\"571010728\":2020,\"571825816\":2020,\"571887595\":2020,\"571998775\":2020,\"572084713\":2020,\"572171994\":2019,\"572435788\":2019,\"572474677\":2020,\"572558416\":2020,\"572628258\":2019,\"572936605\":2020,\"573130327\":2020,\"573436194\":2020,\"573616388\":2020,\"573912213\":2019,\"574061282\":2019,\"574323005\":2020,\"574371811\":2019,\"574527752\":2019,\"574642358\":2020,\"574729583\":2020,\"574819785\":2019,\"575449047\":2020,\"575593380\":2020,\"575756273\":2020,\"575855231\":2020,\"576251515\":2020,\"576272846\":2019,\"576306293\":2019,\"576596657\":2019,\"577746520\":2020,\"578080592\":2019,\"578201398\":2020,\"578457017\":2020,\"578673570\":2020,\"579479194\":2020,\"579624702\":2020,\"579877513\":2020,\"580416457\":2020,\"582039772\":2020,\"582790678\":2020,\"583773412\":2020,\"583855236\":2020,\"584892304\":2020,\"584972881\":2020,\"585914950\":2020,\"585917108\":2020,\"586816249\":2020,\"588437920\":2020,\"589307993\":2020,\"589637677\":2020,\"590198910\":2020,\"590637265\":2020,\"593132932\":2020,\"593226141\":2020,\"594635804\":2020,\"594686896\":2020,\"595647208\":2020,\"597101088\":2020,\"599128385\":2020,\"599167238\":2020,\"599482005\":2020,\"599829688\":2020,\"600000636\":2020,\"600093849\":2020,\"601100498\":2020,\"601148375\":2020,\"601521600\":2020,\"602017095\":2020,\"603257674\":2020,\"603407076\":2020,\"603529855\":2020,\"603539894\":2020,\"605176712\":4040,\"605884826\":2020,\"606257548\":2020,\"606847399\":2020,\"606918703\":2020,\"607345831\":2020,\"607398988\":2020,\"610564237\":2020,\"610568199\":2020,\"610612724\":2020,\"613272503\":2020,\"614531415\":2020,\"614648108\":2020,\"615591471\":2020,\"616303214\":2020,\"621415214\":2020,\"624461749\":2020,\"625696077\":2020,\"626941297\":2020,\"630517790\":2020,\"632029364\":2020,\"633026943\":2020}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# display transformed data\n",
+							"#display(df)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# print number of rows and columns\n",
+							"print('Columns:', len(df.columns))\n",
+							"print('Rows:', df.count())"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Exploratory Data Analysis\n",
+							""
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Distribution of Count vs. Binary Features"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"count"
+									],
+									"values": [
+										"brand_apple_viewed_count"
+									],
+									"yLabel": "brand_apple_viewed_count",
+									"xLabel": "count",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"brand_apple_viewed_count\":{\"1\":125865,\"2\":32499,\"3\":14454,\"4\":14004,\"5\":7929,\"6\":2322,\"7\":5463,\"8\":3222,\"9\":2520,\"10\":1476,\"11\":3303,\"12\":1413,\"14\":1557,\"16\":1296,\"17\":1269,\"19\":648,\"20\":639,\"21\":1413,\"22\":1854,\"24\":1719,\"26\":1134,\"27\":594,\"30\":576,\"34\":477,\"35\":513,\"38\":540,\"39\":441,\"40\":1512,\"48\":495,\"49\":468,\"55\":864,\"56\":450,\"58\":414,\"62\":432,\"64\":387,\"67\":396,\"75\":423,\"76\":369,\"86\":360,\"97\":324,\"98\":378,\"104\":351,\"106\":315,\"112\":342,\"114\":333,\"117\":306,\"141\":297,\"149\":279,\"152\":288,\"154\":270,\"171\":261,\"174\":243,\"177\":252,\"202\":234,\"220\":225,\"260\":216,\"288\":198,\"311\":207,\"317\":189,\"342\":171,\"349\":180,\"463\":153,\"467\":162,\"518\":144,\"591\":135,\"631\":126,\"711\":117,\"814\":108,\"872\":99,\"1014\":90,\"1157\":81,\"1381\":72,\"1617\":63,\"1924\":54,\"2329\":45,\"2960\":36,\"3675\":27,\"4744\":9,\"5479\":18,\"30540\":0}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of apple brand view count\n",
+							"display(df.groupBy('brand_apple_viewed_count').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand_apple_viewed_binary"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "brand_apple_viewed_binary",
+									"aggregation": "SUM",
+									"aggByBackend": false,
+									"isValid": true,
+									"inValidMsg": null
+								},
+								"aggData": "{\"count\":{\"0\":30540,\"1\":37370}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of apple brand view binary\n",
+							"display(df.groupBy('brand_apple_viewed_binary').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"count"
+									],
+									"values": [
+										"subcategory_smartphone_viewed_count"
+									],
+									"yLabel": "subcategory_smartphone_viewed_count",
+									"xLabel": "count",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"subcategory_smartphone_viewed_count\":{\"1\":217215,\"2\":61074,\"3\":29097,\"4\":15570,\"5\":13779,\"6\":10836,\"7\":2520,\"8\":9342,\"9\":6669,\"10\":3474,\"11\":936,\"12\":3429,\"13\":918,\"14\":3834,\"15\":2817,\"17\":4698,\"18\":1683,\"19\":1071,\"20\":2673,\"21\":972,\"22\":2457,\"23\":2259,\"24\":3987,\"27\":747,\"28\":738,\"29\":1377,\"30\":729,\"31\":639,\"34\":675,\"35\":684,\"37\":657,\"39\":621,\"40\":702,\"41\":630,\"44\":1773,\"45\":648,\"49\":522,\"50\":567,\"51\":1152,\"54\":603,\"58\":549,\"62\":1071,\"73\":990,\"74\":495,\"81\":432,\"82\":513,\"83\":450,\"91\":477,\"97\":468,\"98\":459,\"99\":441,\"109\":396,\"120\":378,\"122\":405,\"124\":423,\"129\":414,\"134\":387,\"146\":360,\"147\":369,\"154\":351,\"161\":342,\"181\":324,\"191\":612,\"193\":306,\"201\":315,\"220\":288,\"227\":297,\"260\":270,\"272\":252,\"274\":261,\"305\":243,\"309\":225,\"316\":234,\"372\":216,\"389\":207,\"399\":198,\"484\":180,\"490\":189,\"502\":171,\"539\":162,\"585\":153,\"644\":144,\"731\":135,\"781\":117,\"788\":126,\"882\":108,\"979\":99,\"1067\":90,\"1200\":81,\"1342\":72,\"1429\":63,\"1669\":54,\"1908\":45,\"2306\":9,\"2308\":36,\"2630\":27,\"3379\":18,\"32633\":0}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of smartphone subcategory view count\n",
+							"display(df.groupBy('subcategory_smartphone_viewed_count').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"subcategory_smartphone_viewed_binary"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "subcategory_smartphone_viewed_binary",
+									"aggregation": "SUM",
+									"aggByBackend": false,
+									"isValid": true,
+									"inValidMsg": null
+								},
+								"aggData": "{\"count\":{\"0\":32633,\"1\":35277}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of smartphone subcategory binary\n",
+							"display(df.groupBy('subcategory_smartphone_viewed_binary').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Keep Binary Features\n",
+							"\n",
+							"Because the features that measure counts of views, add to cart, and purchases are very right skewed, it makes sense to either bin the upper values or use the binary feature instead. Because the binary features have balanced classes, we are going to use the binary features."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# only keep binary columns\n",
+							"df = df.select('user_id', 'year', 'month', 'growth', 'sessions_per_user_per_month', 'avg_session_duration_per_user_per_month', \n",
+							"              'avg_conversion_rate_per_user_per_month', 'avg_order_value_per_user_per_month', 'avg_cart_abandon_rate', \n",
+							"              'brand_apple_viewed_binary', 'brand_samsung_viewed_binary', 'brand_xiaomi_viewed_binary', 'brand_huawei_viewed_binary', \n",
+							"              'brand_lenovo_viewed_binary', \n",
+							"              'brand_apple_added_binary', 'brand_samsung_added_binary', 'brand_xiaomi_added_binary', \n",
+							"              'brand_huawei_added_binary', 'brand_acer_added_binary', \n",
+							"              'brand_apple_purchased_binary', 'brand_samsung_purchased_binary', 'brand_xiaomi_purchased_binary',\n",
+							"              'brand_huawei_purchased_binary', 'brand_acer_purchased_binary', \n",
+							"              'subcategory_smartphone_viewed_binary', 'subcategory_audio_viewed_binary', 'subcategory_clocks_viewed_binary', \n",
+							"              'subcategory_tablet_viewed_binary', 'subcategory_telephone_viewed_binary', \n",
+							"              'subcategory_smartphone_added_binary', 'subcategory_audio_added_binary', 'subcategory_clocks_added_binary', \n",
+							"              'subcategory_tablet_added_binary', 'subcategory_telephone_added_binary', \n",
+							"              'subcategory_smartphone_purchased_binary', 'subcategory_audio_purchased_binary', 'subcategory_clocks_purchased_binary', \n",
+							"              'subcategory_tablet_purchased_binary',\n",
+							"              'subcategory_telephone_purchased_binary',\n",
+							"              'product_id_1004856_viewed_binary', 'product_id_1005115_viewed_binary', 'product_id_1004767_viewed_binary',\n",
+							"              'product_id_4804056_viewed_binary', 'product_id_1005105_viewed_binary',\n",
+							"              'product_id_1004856_added_binary', 'product_id_1004767_added_binary', 'product_id_1005115_added_binary',\n",
+							"              'product_id_4804056_added_binary', 'product_id_1004833_added_binary', \n",
+							"              'product_id_1004856_purchased_binary', 'product_id_1004767_purchased_binary', 'product_id_1005115_purchased_binary', \n",
+							"              'product_id_4804056_purchased_binary', 'product_id_1004833_purchased_binary')"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Distribution of Continous Variables\n",
+							""
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Convert to Pandas Dataframe for Visualization\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# convert to pandas dataframe to use for visualizations\n",
+							"pdf = df.toPandas()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Remove Outliers\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"pdf = df.toPandas()\n",
+							"sessions_hist = sns.distplot(pdf['sessions_per_user_per_month'], kde = False)\n",
+							"sessions_hist.set_title('Distribution of Sessions per User per Month')\n",
+							"sessions_hist.set_xlabel('# of Sessions') \n",
+							"sessions_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# remove outliers from sessions per user per month\n",
+							"pdf_filtered = pdf[pdf['sessions_per_user_per_month'] <= 60]\n",
+							"sessions_hist = sns.distplot(pdf_filtered['sessions_per_user_per_month'], kde = False)\n",
+							"sessions_hist.set_title('Distribution of Sessions Per User Per Month Cleaned')\n",
+							"sessions_hist.set_xlabel('# of Sessions') \n",
+							"sessions_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"session_duration_hist = sns.distplot(pdf_filtered['avg_session_duration_per_user_per_month'], kde = False)\n",
+							"session_duration_hist.set_title('Distribution of Sessions per User per Month')\n",
+							"session_duration_hist.set_xlabel('Session Duration') \n",
+							"session_duration_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# remove outliers from session duration per user per month\n",
+							"pdf_filtered = pdf_filtered[pdf_filtered['avg_session_duration_per_user_per_month'] <= 4000]\n",
+							"session_duration_hist = sns.distplot(pdf_filtered['avg_session_duration_per_user_per_month'], kde = False)\n",
+							"session_duration_hist.set_title('Distribution of Sessions Per User Per Month Cleaned')\n",
+							"session_duration_hist.set_xlabel('Session Duration') \n",
+							"session_duration_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"conversion_rate_hist = sns.distplot(pdf_filtered['avg_conversion_rate_per_user_per_month'], kde = False)\n",
+							"conversion_rate_hist.set_title('Distribution of Avg Conversion Rate per Month')\n",
+							"conversion_rate_hist.set_xlabel('Avg Conversion Rate') \n",
+							"conversion_rate_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# remove invalid values for avg conversion rate\n",
+							"pdf_filtered = pdf_filtered[pdf_filtered['avg_conversion_rate_per_user_per_month'] <= 1]\n",
+							"conversion_rate_hist = sns.distplot(pdf_filtered['avg_conversion_rate_per_user_per_month'], kde = False)\n",
+							"conversion_rate_hist.set_title('Distribution of Avg Conversion Rate Per User Per Month Cleaned')\n",
+							"conversion_rate_hist.set_xlabel('Avg Conversion Rate') \n",
+							"conversion_rate_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"order_value_hist = sns.distplot(pdf_filtered['avg_order_value_per_user_per_month'], kde = False)\n",
+							"order_value_hist.set_title('Distribution of Avg Order Value per Month')\n",
+							"order_value_hist.set_xlabel('Avg Order Value') \n",
+							"order_value_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# remove outliers from avg order value per user per month\n",
+							"pdf_filtered = pdf_filtered[pdf_filtered['avg_order_value_per_user_per_month'] <= 2000]\n",
+							"order_value_hist = sns.distplot(pdf_filtered['avg_order_value_per_user_per_month'], kde = False)\n",
+							"order_value_hist.set_title('Distribution of Avg Order Value Per User Per Month Cleaned')\n",
+							"order_value_hist.set_xlabel('Avg Order Value') \n",
+							"order_value_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"cart_abandon_rate_hist = sns.distplot(pdf_filtered['avg_cart_abandon_rate'], kde = False)\n",
+							"cart_abandon_rate_hist.set_title('Distribution of Avg Cart Abandon Rate')\n",
+							"cart_abandon_rate_hist.set_xlabel('Avg Cart Abandon Rate') \n",
+							"cart_abandon_rate_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# remove invalid values for cart abandon rate\n",
+							"pdf_filtered = pdf_filtered[(pdf_filtered['avg_cart_abandon_rate'] <= 1) & (pdf_filtered['avg_cart_abandon_rate'] >= 0)]\n",
+							"cart_abandon_rate_hist = sns.distplot(pdf_filtered['avg_cart_abandon_rate'], kde = False)\n",
+							"cart_abandon_rate_hist.set_title('Distribution of Avg Cart Abandon Rate Cleaned')\n",
+							"cart_abandon_rate_hist.set_xlabel('Avg Cart Abandon Rate') \n",
+							"cart_abandon_rate_hist.set_ylabel('Frequency')\n",
+							"plt.show()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# percent of original dataframe remaining after eliminating outliers\n",
+							"print('% of data remaining:', '{:.2%}'.format(len(pdf_filtered)/len(pdf)))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Feature Selection\n",
+							""
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Correlation Analysis\n",
+							"We are going to example correlations between features to search for multicolinearity (where 2+ features are highly correlated with each other)."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# search for features with at least 80% correlation\n",
+							"correlations = pdf_filtered.corr().abs().unstack().sort_values(ascending = False).drop_duplicates()\n",
+							"correlations[correlations>=0.8]"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"There is a lot of multicolinearity between viewed, added to cart, and purchased features which means that keeping all 3 in the dataset would be overcounting these features. Below we will do further analysis to determine which set of features to keep."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# convert back into a Spark DataFrame\n",
+							"df_filtered = spark.createDataFrame(pdf_filtered)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand_apple_viewed_binary"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "brand_apple_viewed_binary",
+									"aggregation": "SUM",
+									"aggByBackend": false,
+									"isValid": true,
+									"inValidMsg": null
+								},
+								"aggData": "{\"count\":{\"0\":29191,\"1\":35811}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of apple brand view binary\n",
+							"display(df_filtered.groupBy('brand_apple_viewed_binary').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand_apple_added_binary"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "brand_apple_added_binary",
+									"aggregation": "SUM",
+									"aggByBackend": false,
+									"isValid": true,
+									"inValidMsg": null
+								},
+								"aggData": "{\"count\":{\"0\":37747,\"1\":27255}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of apple brand added to cart binary\n",
+							"display(df_filtered.groupBy('brand_apple_added_binary').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 2,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"brand_apple_purchased_binary"
+									],
+									"values": [
+										"count"
+									],
+									"yLabel": "count",
+									"xLabel": "brand_apple_purchased_binary",
+									"aggregation": "SUM",
+									"aggByBackend": false,
+									"isValid": true,
+									"inValidMsg": null
+								},
+								"aggData": "{\"count\":{\"0\":37845,\"1\":27157}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# distribution of apple brand purchased binary\n",
+							"display(df_filtered.groupBy('brand_apple_purchased_binary').count().orderBy(desc('count')))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"Because purchase events are most representative of customers buying intent compared to views and added to cart and because these events still have balanced classes, we are going to keep only purchased features.\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# keep only purchased features\n",
+							"df_filtered = df_filtered.select(['user_id', 'year', 'month', 'growth', 'sessions_per_user_per_month', 'avg_session_duration_per_user_per_month', \n",
+							"                                    'avg_conversion_rate_per_user_per_month', 'avg_order_value_per_user_per_month', 'avg_cart_abandon_rate', \n",
+							"                                    'brand_apple_purchased_binary', 'brand_samsung_purchased_binary', 'brand_xiaomi_purchased_binary', \n",
+							"                                    'brand_huawei_purchased_binary', 'brand_acer_purchased_binary',\n",
+							"                                    'subcategory_smartphone_purchased_binary', 'subcategory_audio_purchased_binary',\n",
+							"                                    'subcategory_clocks_purchased_binary', 'subcategory_tablet_purchased_binary',\n",
+							"                                    'subcategory_telephone_purchased_binary', 'product_id_1004856_purchased_binary',\n",
+							"                                    'product_id_1004767_purchased_binary', 'product_id_1005115_purchased_binary',\n",
+							"                                    'product_id_4804056_purchased_binary', 'product_id_1004833_purchased_binary'])"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# print number of rows and columns after feature selection\n",
+							"print('Columns:', len(df_filtered.columns))\n",
+							"print('Rows:', df_filtered.count())"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Save Results to Data Lake\n",
+							"Persist the transformed data to a Delta Table on the Data Lake"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# write transformed data to delta table\n",
+							"df_filtered.write.format('delta').mode('overwrite').option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/ml_data\")\n",
+							"\n",
+							"# write transformed data to parquet table\n",
+							"df_filtered.write.format('parquet').mode('overwrite').option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/ml_data_parquet\")"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/6 - PBI Data Model')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "a961aa46-ec17-400e-83a6-c9d736e0f6dd"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"source": [
+							"Copyright (c) Microsoft Corporation. \n",
+							"Licensed under the MIT license. \n",
+							"# Power BI Data Model\n",
+							"\n",
+							"Transform the cleaned dataset for reporting in Power BI, storing tables as CSV files in the Data Lake.\n",
+							"\n",
+							"The resulting data model includes four tables:\n",
+							"\n",
+							"1. Customer: user info, growth/no growth, & aggregated session metrics\n",
+							"1. Activity: user clickstream activity, e.g. product views, purchases\n",
+							"1. Products: reference table with additional product information\n",
+							"1. Categories: reference table with additional product category information.\n",
+							""
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Library Imports\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import pyspark\n",
+							"from pyspark.sql import functions as F\n",
+							"from pyspark.sql.functions import *\n",
+							"from pyspark.sql import *\n",
+							"from pyspark.sql.types import *"
+						],
+						"outputs": [],
+						"execution_count": 1
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Read in Data from Delta Lake\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"data_lake_account_name = ''\n",
+							"file_system_name = ''"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"paths = [f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/cleaned_data_electronics\"]\n",
+							"full_dataset = spark.read.format(\"delta\").load(*paths)"
+						],
+						"outputs": [],
+						"execution_count": 2
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# add month & year, re-order columns\n",
+							"cleaned_df = full_dataset.withColumn('month', month('event_time')) \\\n",
+							"    .withColumn('year', year('event_time')) \\\n",
+							"    .drop('category_code') \\\n",
+							"    .select('user_id', 'year', 'month', 'event_type', 'product_id', 'category_id', 'category', 'subcategory', 'brand', 'price', 'user_session', 'event_time')"
+						],
+						"outputs": [],
+						"execution_count": 4
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# write cleaned_df table to an intermediate spark table\n",
+							"cleaned_df.write.format(\"delta\").mode(\"overwrite\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/cleaned_df\")"
+						],
+						"outputs": [],
+						"execution_count": 5
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# read cleaned_df table from intermediate spark table\n",
+							"cleaned_df = spark.read.format(\"delta\").load(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/intermediate_tables/cleaned_df\")"
+						],
+						"outputs": [],
+						"execution_count": 2
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Data Modeling\n",
+							"\n",
+							"Transform data to create four tables for reporting, each with a unique identifier (UID, product_id, or category_id) to be linked in Power BI."
+						]
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Customer Table\n",
+							"\n",
+							"**Growth indicator:** Classify customers as growth or no growth based on month-over-month change in net revenue.\n",
+							"\n",
+							"1. Growth if >10% net revenue increase\n",
+							"1. No growth if >10% net revenue decrease\n",
+							"1. No change if in between\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"101875240\":2020,\"107620212\":2020,\"128968633\":2019,\"136662675\":2019,\"145611266\":2019}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# get monthly revenue\n",
+							"growth = cleaned_df.filter(col('event_type') == 'purchase') \\\n",
+							"    .withColumn('revenue', cleaned_df['price'].cast('double'))\\\n",
+							"    .groupBy('user_id', 'year', 'month') \\\n",
+							"    .sum('revenue') \\\n",
+							"    .withColumnRenamed('sum(revenue)', 'total_net_revenue') \\\n",
+							"    .orderBy('user_id', 'year', 'month')"
+						],
+						"outputs": [],
+						"execution_count": 3
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"diagram": {
+								"activateDiagramType": 1,
+								"chartConfig": {
+									"category": "bar",
+									"keys": [
+										"user_id"
+									],
+									"values": [
+										"year"
+									],
+									"yLabel": "year",
+									"xLabel": "user_id",
+									"aggregation": "SUM",
+									"aggByBackend": false
+								},
+								"aggData": "{\"year\":{\"430640726\":2020,\"436540545\":2020,\"461023190\":2019,\"476777607\":4039}}",
+								"isSummary": false,
+								"previewData": {
+									"filter": null
+								},
+								"isSql": false
+							}
+						},
+						"source": [
+							"# get deltas for previous month\n",
+							"from pyspark.sql.window import Window\n",
+							"from pyspark.sql.functions import lag\n",
+							"\n",
+							"window_specs = Window.partitionBy('user_id').orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"growth_lag = growth.withColumn('last_month_revenue', lag(growth.total_net_revenue).over(window_specs).cast('double'))\n",
+							"growth_delta = growth_lag.withColumn('delta_net_revenue', (growth_lag.total_net_revenue - growth_lag.last_month_revenue).cast('double'))"
+						],
+						"outputs": [],
+						"execution_count": 4
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# identify growth vs. no growth customers\n",
+							"# growth defined as +/-10% revenue month-over-month\n",
+							"\n",
+							"df_growth_a = growth_delta.withColumn('percent_delta_revenue', growth_delta['delta_net_revenue']/growth_delta['last_month_revenue'].cast('double'))\n",
+							"df_growth = df_growth_a.withColumn('growth', \n",
+							"        when(df_growth_a['percent_delta_revenue'] > .1, 'growth')\n",
+							"        .when(df_growth_a['percent_delta_revenue'] < -.1, 'decline')\n",
+							"        .otherwise('no change')) \\\n",
+							"        .drop('last_month_revenue', 'delta_net_revenue') \\\n",
+							"        .filter(col('growth').isNotNull())"
+						],
+						"outputs": [],
+						"execution_count": 5
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"**Session & buying behavior:** Calculated on a per user, per month basis.\n",
+							"\n",
+							"* Number of sessions\n",
+							"* Average session duration\n",
+							"* Average conversion rate\n",
+							"* Average order value\n",
+							"* Average cart abandon rate\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# sessions per user\n",
+							"sessions_per_user_per_month = cleaned_df.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(countDistinct('user_session').alias('sessions_per_user_per_month')) \\\n",
+							"    .fillna({'sessions_per_user_per_month': 0}) \\\n",
+							"    .orderBy('user_id', 'year', 'month')"
+						],
+						"outputs": [],
+						"execution_count": 6
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg session duration\n",
+							"# time between start & end of each session, aggregated per user per month\n",
+							"session_durations = cleaned_df.groupBy('user_id', 'year', 'month', 'user_session') \\\n",
+							"    .agg(\n",
+							"        unix_timestamp(min('event_time')).alias('session_start_time'),\n",
+							"        unix_timestamp(max('event_time')).alias('session_end_time')) \\\n",
+							"    .withColumn('session_duration', col('session_end_time')-col('session_start_time')) \\\n",
+							"    .drop('user_session', 'session_start_time', 'session_end_time')\n",
+							"\n",
+							"avg_session_duration_per_user_per_month = session_durations.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('session_duration').cast('double').alias('avg_session_duration_per_user_per_month')) \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_session_duration_per_user_per_month.orderBy(desc('avg_session_duration_per_user_per_month')).show(5)"
+						],
+						"outputs": [],
+						"execution_count": 7
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg conversion rate\n",
+							"# avg # purchases / # views per user per month\n",
+							"avg_conversion_rate_per_user_per_month = cleaned_df.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(\n",
+							"        count(when(col('event_type') == 'view', True)).alias('num_views'),\n",
+							"        count(when(col('event_type') == 'purchase', True)).alias('num_purchases')) \\\n",
+							"    .fillna({'num_views': 0, 'num_purchases': 0}) \\\n",
+							"    .withColumn('avg_conversion_rate_per_user_per_month', (col('num_purchases')/col('num_views')).cast('double')) \\\n",
+							"    .drop('num_views', 'num_purchases') \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_conversion_rate_per_user_per_month.orderBy(desc('avg_conversion_rate_per_user_per_month')).show(5)"
+						],
+						"outputs": [],
+						"execution_count": 8
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg order value\n",
+							"# price per user per month, for purchases only\n",
+							"avg_order_value_per_user_per_month = cleaned_df.filter(col('event_type') == 'purchase') \\\n",
+							"    .groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('price').cast('double').alias('avg_order_value_per_user_per_month')) \\\n",
+							"    .orderBy('user_id', 'year', 'month')\n",
+							"\n",
+							"#avg_order_value_per_user_per_month.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 9
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# avg_cart_abandon_rate\n",
+							"# items that were added to cart, but not purchased\n",
+							"abandon_rate_per_session = cleaned_df.filter((col('event_type') == 'purchase') | (col('event_type') == 'cart')) \\\n",
+							"    .groupBy('user_id', 'year', 'month', 'user_session', 'product_id') \\\n",
+							"    .pivot('event_type').agg(count('product_id')) \\\n",
+							"    .fillna({'cart':0, 'purchase':0}) \\\n",
+							"    .withColumn('cart_abandon_rate', (col('cart')-col('purchase'))/col('cart'))\n",
+							"\n",
+							"avg_cart_abandon_rate = abandon_rate_per_session.groupBy('user_id', 'year', 'month') \\\n",
+							"    .agg(mean('cart_abandon_rate').cast('double').alias('avg_cart_abandon_rate'))\n",
+							"\n",
+							"#avg_cart_abandon_rate.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 10
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"**Join all Customer DataFrames**\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# join customer dfs\n",
+							"def join_dfs (df_list):\n",
+							"    joined_df = df_growth\n",
+							"    for l in df_list:\n",
+							"        joined_df = joined_df.join(l, ['user_id', 'year', 'month'], how='left')\n",
+							"    return joined_df\n",
+							"\n",
+							"customers_joined = join_dfs([sessions_per_user_per_month, \\\n",
+							"    avg_session_duration_per_user_per_month, \\\n",
+							"    avg_conversion_rate_per_user_per_month, \\\n",
+							"    avg_order_value_per_user_per_month, \\\n",
+							"    avg_cart_abandon_rate])"
+						],
+						"outputs": [],
+						"execution_count": 11
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# add unique identifier\n",
+							"customers = customers_joined.withColumn('UID', concat(customers_joined['user_id'], lit('-'), customers_joined['year'], lit('-'), customers_joined['month']))"
+						],
+						"outputs": [],
+						"execution_count": 12
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Clickstream Activity Table\n",
+							"\n",
+							"A transaction table that lists each clickstream event, including product views, add to cart, and purchases."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# filter to only rows where 'growth' is applicable, i.e. rows in customer table\n",
+							"activity = cleaned_df.withColumn('UID', concat(cleaned_df['user_id'], lit('-'), cleaned_df['year'], lit('-'), cleaned_df['month'])) \\\n",
+							"    .join(customers, ['UID'], how='right') \\\n",
+							"    .select('UID', 'event_type', 'product_id')"
+						],
+						"outputs": [],
+						"execution_count": 13
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Products Table\n",
+							"\n",
+							"A reference table with additional product information."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"products = cleaned_df.select('product_id', 'brand', 'price', 'category_id').dropDuplicates(['product_id'])"
+						],
+						"outputs": [],
+						"execution_count": 14
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"### Categories Table\n",
+							"\n",
+							"A reference table with additional product category information."
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"categories = cleaned_df.select('category_id', 'category', 'subcategory').dropDuplicates(['category_id'])"
+						],
+						"outputs": [],
+						"execution_count": 15
+					},
+					{
+						"cell_type": "markdown",
+						"source": [
+							"## Save Tables to Data Lake\n",
+							"\n",
+							"Persist the four tables to CSV files in the Data Lake for reporting.\n",
+							""
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"save_path = f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/reporting/\"\n",
+							"\n",
+							"customers.coalesce(1).write.option('header', 'true').mode('overwrite').option(\"overwriteSchema\", \"true\").csv(save_path+'customers')\n",
+							"activity.write.option('header', 'true').mode('overwrite').option(\"overwriteSchema\", \"true\").csv(save_path+'activity')\n",
+							"products.coalesce(1).write.option('header', 'true').option(\"overwriteSchema\", \"true\").mode('overwrite').csv(save_path+'products')\n",
+							"categories.coalesce(1).write.option('header', 'true').option(\"overwriteSchema\", \"true\").mode('overwrite').csv(save_path+'categories')"
+						],
+						"outputs": [],
+						"execution_count": 16
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/chadtsparkpool')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 15
+				},
+				"autoScale": {
+					"enabled": true,
+					"maxNodeCount": 10,
+					"minNodeCount": 3
+				},
+				"nodeCount": 10,
+				"nodeSize": "Medium",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.4",
+				"libraryRequirements": {
+					"content": "azure-storage-blob==12.4.0\nazureml-interpret==1.15.0",
+					"filename": "requirements.txt",
+					"time": "2024-09-18T17:16:06.5227214Z"
+				},
+				"isComputeIsolationEnabled": false,
+				"sessionLevelPackagesEnabled": false,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "eastus2"
+		}
+	]
+}
