@@ -18,15 +18,16 @@
 				"spark.dynamicAllocation.enabled": "false",
 				"spark.dynamicAllocation.minExecutors": "2",
 				"spark.dynamicAllocation.maxExecutors": "2",
-				"spark.autotune.trackingId": "965144d1-6b79-43d1-9f82-4ecf79aa09dd"
+				"spark.autotune.trackingId": "21a5cb9b-cf79-4edb-8386-23bd694a5d4f"
 			}
 		},
 		"metadata": {
 			"saveOutput": true,
-			"synapse_widget": {
-				"version": "0.1"
-			},
 			"enableDebugMode": false,
+			"kernelspec": {
+				"name": "synapse_pyspark",
+				"display_name": "Synapse PySpark"
+			},
 			"language_info": {
 				"name": "python"
 			},
@@ -37,14 +38,13 @@
 				"endpoint": "https://chadtoneysynapseworkspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/chadtsparkpool",
 				"auth": {
 					"type": "AAD",
-					"authResource": "https://dev.azuresynapse.net",
-					"authHeader": null
+					"authResource": "https://dev.azuresynapse.net"
 				},
 				"sparkVersion": "3.4",
 				"nodeCount": 10,
 				"cores": 8,
 				"memory": 56,
-				"extraHeader": null
+				"automaticScaleJobs": false
 			},
 			"sessionKeepAliveTimeout": 30
 		},
@@ -266,7 +266,8 @@
 					"\n",
 					"# top telephone brands\n",
 					"# display(filtered_df.filter(filtered_df['sub_category_1'] == 'telephone').groupBy('brand').count().orderBy(desc('count')))"
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "code",
@@ -314,7 +315,8 @@
 					"                                        (df['subcategory'] == 'telephone') & (df['brand'].isin(telephone_brands))\n",
 					"                                    )\n",
 					"                                )"
-				]
+				],
+				"execution_count": null
 			},
 			{
 				"cell_type": "markdown",
@@ -351,7 +353,8 @@
 				},
 				"source": [
 					"df.write.format(\"delta\").mode(\"overwrite\").option(\"overwriteSchema\", \"true\").save(f\"abfss://{file_system_name}\" + \"@\"+ f\"{data_lake_account_name}.dfs.core.windows.net/transformed_data/cleaned_data_electronics\")"
-				]
+				],
+				"execution_count": null
 			}
 		]
 	}
